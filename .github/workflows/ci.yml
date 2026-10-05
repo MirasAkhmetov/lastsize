@@ -41,10 +41,12 @@ jobs:
       TURBO_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v5
+      # Installs the pnpm version pinned in package.json#packageManager.
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-      - run: corepack enable
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm lint
