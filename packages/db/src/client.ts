@@ -11,20 +11,28 @@ export interface CreateDatabaseOptions {
   connectionString: string;
   applicationName: string;
   maxConnections?: number;
+  /**
+   * Called when an idle connection fails (database restart, network drop). Without a listener
+   * node-postgres would crash the process; the pool replaces broken connections by itself.
+   */
+  onIdleError?: (error: Error) => void;
 }
 
 export function createPool({
   connectionString,
   applicationName,
   maxConnections = 20,
+  onIdleError = (error) => process.stderr.write(`postgres idle client error: ${error.message}\n`),
 }: CreateDatabaseOptions): pg.Pool {
-  return new pg.Pool({
+  const pool = new pg.Pool({
     connectionString,
     application_name: applicationName,
     max: maxConnections,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
   });
+  pool.on('error', onIdleError);
+  return pool;
 }
 
 export function createDatabase(pool: pg.Pool): Database {

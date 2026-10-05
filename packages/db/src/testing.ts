@@ -33,6 +33,8 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     connectionString: url.toString(),
     applicationName: 'lastsize-test',
     maxConnections: 60,
+    // DROP DATABASE … WITH (FORCE) terminates connections that are still closing.
+    onIdleError: () => undefined,
   });
   const db = createDatabase(pool);
   await runMigrations(db);
