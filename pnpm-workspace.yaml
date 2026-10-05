@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Dependencies allowed to run install scripts (everything else is blocked by default).
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  # Ships prebuilt binaries as optional dependencies; its install script only builds a fallback.
+  '@parcel/watcher': false

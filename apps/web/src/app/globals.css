@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+/* LastSize design tokens (Blueprint, section 10). Red means one thing only: money saved or a last item. */
+:root {
+  --paper: #f6f6f4;
+  --surface: #ffffff;
+  --ink: #121316;
+  --muted: #62656d;
+  --line: #e2e2de;
+  --soft: #eeeeeb;
+  --sale: #e3132c;
+  --sale-soft: #fde8ea;
+  --on-sale: #ffffff;
+  --ok: #0b7f45;
+  --ok-soft: #e3f4ea;
+  --warn: #a35f00;
+  --warn-soft: #fbf0dd;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e0f11;
+    --surface: #17181b;
+    --ink: #f1f1ee;
+    --muted: #9b9ea6;
+    --line: #2a2c31;
+    --soft: #202226;
+    --sale: #ff3a4f;
+    --sale-soft: #3a1419;
+    --ok: #3dcb80;
+    --ok-soft: #10291c;
+    --warn: #f2a63b;
+    --warn-soft: #2e2210;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-soft: var(--soft);
+  --color-sale: var(--sale);
+  --color-sale-soft: var(--sale-soft);
+  --color-on-sale: var(--on-sale);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --font-display: var(--font-unbounded), 'Arial Black', system-ui, sans-serif;
+  --font-sans: var(--font-golos), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --radius-img: 4px;
+  --radius-ctl: 10px;
+  --radius-sheet: 18px;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sale);
+  outline-offset: 2px;
+}

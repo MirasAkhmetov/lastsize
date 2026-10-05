@@ -1,0 +1,28 @@
+# SITE_ADDRESS:
+#   до покупки домена — ":80" (только для команды, без HTTPS)
+#   после — "lastsize.kz, www.lastsize.kz": Caddy сам получит сертификат Let's Encrypt
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# The API is reachable only through this proxy; its container publishes no ports.
+	handle /api/* {
+		reverse_proxy api:4000 {
+			header_up X-Request-Id {http.request.uuid}
+		}
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
