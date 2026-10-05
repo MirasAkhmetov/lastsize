@@ -22,6 +22,7 @@ apps/
 packages/
   config/       Проверка переменных окружения при старте
   contracts/    zod-схемы запросов и ответов API
+  db/           Схема PostgreSQL (Drizzle), миграции, справочники, RBAC, репозитории остатков и цен
   logger/       pino со скрытием секретов
 deploy/         Production: docker-compose.prod.yml, Caddyfile, пример .env
 ```
@@ -35,10 +36,19 @@ corepack enable
 cp .env.example .env
 pnpm install
 pnpm infra:up      # Postgres (порт 5433), Redis, S3
+pnpm db:migrate    # миграции + справочники (роли, категории, размеры, цвета)
 pnpm dev           # сайт: http://localhost:3000, API: http://localhost:4000/api/v1/health
 ```
 
 Казахская версия сайта: http://localhost:3000/kk
+
+## База данных
+
+- Схема описана в `packages/db/src/schema`. После её изменения: `pnpm db:generate` создаёт SQL-миграцию в `packages/db/migrations`. Миграции коммитятся, CI проверяет, что они не отстают от схемы.
+- Триггеры и функции пишутся вручную: `pnpm --filter @lastsize/db exec drizzle-kit generate --custom --name <name>`.
+- Деньги хранятся целыми числами в тиынах (1 ₸ = 100 тиын).
+- Остатки меняются только через `reserveStock` / `releaseStock` / `commitStock` / `returnStock` / `setStockLevel`. Каждое движение пишется в журнал `inventory_transactions`, который нельзя изменить или удалить. Ограничения в самой базе не дают зарезервировать больше, чем есть.
+- Скидка (`discount_percent`) считается базой от минимальной из цен: заявленной, за 30 дней и фактической на WB/Kaspi. Каждое изменение цены триггер пишет в `price_history`.
 
 ## Проверки
 
@@ -53,6 +63,8 @@ TEST_DATABASE_URL=postgres://lastsize:dev-only-change-me@localhost:5433/lastsize
 TEST_REDIS_URL=redis://localhost:6379 pnpm test
 ```
 
+Тесты `packages/db` создают для каждого файла отдельную временную базу, применяют миграции и удаляют её после.
+
 ## Развёртывание на сервере
 
 ```bash
@@ -60,6 +72,8 @@ cd deploy
 cp .env.production.example .env   # заполнить, секреты: openssl rand -hex 32
 docker compose -f docker-compose.prod.yml up -d --build
 ```
+
+Перед стартом API контейнер `migrate` применяет миграции и справочники. Если миграция не прошла, API не запустится.
 
 Наружу открыт только Caddy (порты 80/443). API, базы и хранилище доступны только во внутренней сети Docker. До покупки домена `SITE_ADDRESS=:80`.
 

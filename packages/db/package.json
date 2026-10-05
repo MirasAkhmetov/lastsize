@@ -1,0 +1,33 @@
+{
+  "name": "@lastsize/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=../../.env dist/cli/migrate.js",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@types/pg": "^8.23.1",
+    "drizzle-orm": "0.45.3",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11"
+  }
+}

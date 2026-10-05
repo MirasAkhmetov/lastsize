@@ -49,6 +49,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
+      - name: Migrations match the schema
+        run: |
+          pnpm --filter @lastsize/db exec drizzle-kit generate
+          git diff --exit-code -- packages/db/migrations
+          test -z "$(git status --porcelain -- packages/db/migrations)"
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

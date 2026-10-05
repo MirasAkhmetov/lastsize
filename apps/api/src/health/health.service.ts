@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ReadinessResponse } from '@lastsize/contracts';
 import type { Redis } from 'ioredis';
-import type { Pool } from 'pg';
+import type { Pool } from '@lastsize/db';
 import { PG_POOL, REDIS } from '../infrastructure/infrastructure.module';
 
 const CHECK_TIMEOUT_MS = 2_000;
