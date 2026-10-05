@@ -27,6 +27,7 @@ export const REDIS = Symbol('REDIS');
       useFactory: (env: ApiEnv) =>
         new Redis(env.REDIS_URL, {
           lazyConnect: true,
+          keyPrefix: env.REDIS_KEY_PREFIX,
           maxRetriesPerRequest: 2,
           connectionName: 'lastsize-api',
         }),

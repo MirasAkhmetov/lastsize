@@ -19,6 +19,11 @@ const originList = z
   )
   .pipe(z.array(httpUrl).min(1, 'must contain at least one origin'));
 
+/** 32 random bytes, base64-encoded: `openssl rand -base64 32`. */
+const encryptionKey = z.string().refine((value) => Buffer.from(value, 'base64').length === 32, {
+  message: 'must be 32 bytes encoded as base64 (openssl rand -base64 32)',
+});
+
 export const apiEnvSchema = z.object({
   NODE_ENV: nodeEnv,
   LOG_LEVEL: logLevel,
@@ -27,6 +32,13 @@ export const apiEnvSchema = z.object({
   CORS_ORIGINS: originList,
   DATABASE_URL: postgresUrl,
   REDIS_URL: redisUrl,
+  /** Namespace for all Redis keys of this deployment (tests use a random one). */
+  REDIS_KEY_PREFIX: z
+    .string()
+    .regex(/^[a-z0-9:_-]{1,32}$/)
+    .default('ls:'),
+  /** Encrypts secrets stored in the database (TOTP seeds, marketplace API tokens). */
+  SECRETS_ENCRYPTION_KEY: encryptionKey,
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

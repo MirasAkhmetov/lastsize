@@ -12,7 +12,7 @@ import {
 import { inventory, inventoryTransactions } from '../src/schema/index.js';
 import { createVariantWithStock } from './fixtures.js';
 import { dbError, describePgError } from './db-error.js';
-import { createTestDatabase, type TestDatabase, testDatabaseUrl } from './test-database.js';
+import { createTestDatabase, type TestDatabase, testDatabaseUrl } from '../src/testing.js';
 
 const order = () => ({ refType: 'seller_order', refId: randomUUID() });
 

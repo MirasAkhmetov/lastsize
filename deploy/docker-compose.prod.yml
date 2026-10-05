@@ -66,6 +66,7 @@ services:
       CORS_ORIGINS: ${PUBLIC_SITE_URL}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:?set SECRETS_ENCRYPTION_KEY}
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -8,6 +8,8 @@ import {
 import type { ErrorCode, ProblemDetails } from '@lastsize/contracts';
 import type { Logger } from '@lastsize/logger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { RateLimitedException } from '../security/rate-limiter.service';
+import { ValidationFailedException } from '../security/zod-validation.pipe';
 
 const CODE_BY_STATUS: Partial<Record<number, ErrorCode>> = {
   400: 'BAD_REQUEST',
@@ -63,6 +65,10 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     } else if (exception instanceof HttpException) {
       const detail = this.publicDetail(exception);
       if (detail) problem.detail = detail;
+      if (exception instanceof ValidationFailedException) problem.errors = exception.errors;
+      if (exception instanceof RateLimitedException) {
+        void reply.header('retry-after', String(exception.retryAfterSeconds));
+      }
     }
 
     void reply.status(status).header('content-type', 'application/problem+json').send(problem);

@@ -13,7 +13,7 @@ import {
 } from '../src/schema/index.js';
 import { createStore, createVariantWithStock } from './fixtures.js';
 import { dbError, describePgError } from './db-error.js';
-import { createTestDatabase, type TestDatabase, testDatabaseUrl } from './test-database.js';
+import { createTestDatabase, type TestDatabase, testDatabaseUrl } from '../src/testing.js';
 
 describe.runIf(testDatabaseUrl)('catalog and reference data', () => {
   let t: TestDatabase;

@@ -10,3 +10,24 @@ export * from './repositories/inventory.js';
 export * from './repositories/pricing.js';
 export * from './rbac.js';
 export * from './reference-data.js';
+// Query helpers re-exported so that every package uses the same drizzle-orm build as the schema.
+export {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  not,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';

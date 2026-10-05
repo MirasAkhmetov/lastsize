@@ -18,6 +18,7 @@ async function startApp(overrides: Record<string, string>): Promise<NestFastifyA
     CORS_ORIGINS: 'http://localhost:3000',
     DATABASE_URL: 'postgres://nobody:nothing@127.0.0.1:1/none',
     REDIS_URL: 'redis://127.0.0.1:1',
+    SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
     ...overrides,
   });
   const app = await createApp(env, silentLogger);

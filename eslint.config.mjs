@@ -28,6 +28,20 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: { emitDecoratorMetadata: true, experimentalDecorators: true },
     },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'drizzle-orm',
+              message:
+                'Import query helpers from @lastsize/db: the API is CommonJS and a direct import loads a second, incompatible drizzle-orm build.',
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     // Security boundary: the browser-facing app must never import server-only packages

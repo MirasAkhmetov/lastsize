@@ -7,6 +7,7 @@ const validApiEnv = {
   CORS_ORIGINS: 'https://lastsize.kz, https://www.lastsize.kz',
   DATABASE_URL: 'postgres://app:s3cret-value@db:5432/lastsize',
   REDIS_URL: 'redis://redis:6379',
+  SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
 };
 
 describe('loadEnv', () => {
@@ -26,7 +27,13 @@ describe('loadEnv', () => {
       expect(error).toBeInstanceOf(EnvValidationError);
       const variables = (error as EnvValidationError).issues.map((issue) => issue.variable);
       expect(variables).toEqual(
-        expect.arrayContaining(['API_PORT', 'CORS_ORIGINS', 'DATABASE_URL', 'REDIS_URL']),
+        expect.arrayContaining([
+          'API_PORT',
+          'CORS_ORIGINS',
+          'DATABASE_URL',
+          'REDIS_URL',
+          'SECRETS_ENCRYPTION_KEY',
+        ]),
       );
     }
   });
@@ -41,6 +48,17 @@ describe('loadEnv', () => {
     } catch (error) {
       expect(String((error as Error).message)).not.toContain(secret);
       expect(JSON.stringify(error)).not.toContain(secret);
+    }
+  });
+
+  it('rejects an encryption key of the wrong length without echoing it', () => {
+    const shortKey = Buffer.alloc(16, 1).toString('base64');
+    try {
+      loadEnv(apiEnvSchema, { ...validApiEnv, SECRETS_ENCRYPTION_KEY: shortKey });
+      expect.unreachable();
+    } catch (error) {
+      expect((error as EnvValidationError).issues[0]?.variable).toBe('SECRETS_ENCRYPTION_KEY');
+      expect(String((error as Error).message)).not.toContain(shortKey);
     }
   });
 });
