@@ -12,14 +12,14 @@ export function normalizeKzPhone(input: string): string | null {
 }
 
 export const kzPhoneSchema = z
-  .string()
-  .max(32)
+  .string('phone.invalid')
+  .max(32, 'phone.invalid')
   .transform((value, context) => {
     const phone = normalizeKzPhone(value);
     if (!phone) {
       context.addIssue({
         code: 'custom',
-        message: 'Enter a Kazakhstan mobile number, e.g. +7 701 123 45 67',
+        message: 'phone.invalid',
       });
       return z.NEVER;
     }

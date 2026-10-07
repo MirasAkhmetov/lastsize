@@ -49,3 +49,10 @@ export const webServerEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: httpUrl,
 });
 export type WebServerEnv = z.infer<typeof webServerEnvSchema>;
+
+/** Admin panel, server side only. */
+export const adminServerEnvSchema = z.object({
+  NODE_ENV: nodeEnv,
+  API_INTERNAL_URL: httpUrl,
+});
+export type AdminServerEnv = z.infer<typeof adminServerEnvSchema>;

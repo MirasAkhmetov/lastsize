@@ -3,6 +3,7 @@ import type { Logger } from '@lastsize/logger';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { API_ENV, type ApiEnv } from './config/api-env';
 import { CustomerModule } from './customer/customer.module';
 import { HealthModule } from './health/health.module';
@@ -38,6 +39,7 @@ export class AppModule {
         AuditModule,
         AuthModule,
         HealthModule,
+        CatalogModule,
         CustomerModule,
         SellerModule,
         AdminModule,

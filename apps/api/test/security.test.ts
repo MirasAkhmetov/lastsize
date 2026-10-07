@@ -370,6 +370,25 @@ describe.runIf(integrationEnabled)('authentication and authorization', () => {
     });
   });
 
+  describe('public catalog', () => {
+    it('serves the category tree to anyone, in both languages', async () => {
+      const response = await json('GET', '/api/v1/categories');
+      expect(response.statusCode).toBe(200);
+      const tree = response.json();
+      expect(tree.map((c: { slug: string }) => c.slug)).toEqual([
+        'clothing',
+        'shoes',
+        'accessories',
+      ]);
+      const shoes = tree.find((c: { slug: string }) => c.slug === 'shoes');
+      expect(shoes.sizeChart).toBe('SHOES_EU');
+      expect(shoes.children[0]).toMatchObject({
+        slug: 'sneakers',
+        name: { ru: 'Кроссовки', kk: 'Кроссовкалар' },
+      });
+    });
+  });
+
   describe('guest customers', () => {
     it('creates a guest on first change and keeps data per browser', async () => {
       const empty = await json('GET', '/api/v1/customer/me');

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Golos_Text, Unbounded } from 'next/font/google';
 import { notFound } from 'next/navigation';
+import { ToastProvider } from '@lastsize/ui';
 import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
@@ -69,7 +70,9 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} className={`${unbounded.variable} ${golos.variable}`}>
       <body>
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -1,27 +1,29 @@
 import { z } from 'zod';
 import { kzPhoneSchema } from './phone.js';
 
+/**
+ * Validation messages are stable codes (e.g. "password.tooShort"), not prose: each frontend
+ * translates them into the page language.
+ */
+
 /** Long enough to resist guessing; capped so hashing cannot be used for denial of service. */
-export const passwordSchema = z
-  .string()
-  .min(10, 'Password must be at least 10 characters')
-  .max(128, 'Password must be at most 128 characters');
+export const passwordSchema = z.string().min(10, 'password.tooShort').max(128, 'password.tooLong');
 
 export const registerRequestSchema = z.strictObject({
   phone: kzPhoneSchema,
-  name: z.string().trim().min(2).max(100),
+  name: z.string().trim().min(2, 'name.tooShort').max(100, 'name.tooLong'),
   password: passwordSchema,
 });
 export type RegisterRequest = z.input<typeof registerRequestSchema>;
 
 export const loginRequestSchema = z.strictObject({
   phone: kzPhoneSchema,
-  password: z.string().min(1).max(128),
+  password: z.string().min(1, 'password.required').max(128, 'password.tooLong'),
 });
 export type LoginRequest = z.input<typeof loginRequestSchema>;
 
 export const totpCodeRequestSchema = z.strictObject({
-  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code from the authenticator app'),
+  code: z.string().regex(/^\d{6}$/, 'totp.invalid'),
 });
 export type TotpCodeRequest = z.infer<typeof totpCodeRequestSchema>;
 
@@ -67,7 +69,7 @@ export const customerProfileSchema = z.object({
 export type CustomerProfile = z.infer<typeof customerProfileSchema>;
 
 export const updateCustomerProfileRequestSchema = z.strictObject({
-  name: z.string().trim().min(1).max(100).optional(),
+  name: z.string().trim().min(1, 'name.tooShort').max(100, 'name.tooLong').optional(),
   phone: kzPhoneSchema.optional(),
   locale: z.enum(['ru', 'kk']).optional(),
 });

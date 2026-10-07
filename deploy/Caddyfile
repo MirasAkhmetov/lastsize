@@ -26,3 +26,29 @@
 		format json
 	}
 }
+
+# Admin panel on its own address. Until the domain is bought: ADMIN_SITE_ADDRESS=:8081,
+# reachable only through the firewall/VPN. Afterwards: admin.lastsize.kz (own host-only cookies).
+{$ADMIN_SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Robots-Tag "noindex, nofollow"
+	}
+
+	handle /api/* {
+		reverse_proxy api:4000 {
+			header_up X-Request-Id {http.request.uuid}
+		}
+	}
+
+	handle {
+		reverse_proxy admin:3001
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
