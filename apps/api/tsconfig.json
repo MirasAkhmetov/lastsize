@@ -10,5 +10,5 @@
     "declarationMap": false,
     "isolatedModules": false
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": ["src", "test", "vitest.config.mts"]
 }

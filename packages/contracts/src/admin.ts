@@ -21,5 +21,7 @@ export const sellerStoreSchema = z.object({
   name: z.string(),
   status: z.enum(['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'BLOCKED']),
   role: z.enum(['SELLER', 'SELLER_MANAGER']),
+  /** Why the store was rejected or blocked; null otherwise. */
+  statusReason: z.string().nullable(),
 });
 export type SellerStore = z.infer<typeof sellerStoreSchema>;

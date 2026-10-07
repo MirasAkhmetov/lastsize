@@ -1,12 +1,18 @@
 import 'server-only';
 import {
-  categoryTreeSchema,
   type Category,
+  categoryTreeSchema,
+  type City,
+  cityListSchema,
   type MeResponse,
   meResponseSchema,
+  type SellerStore,
+  sellerStoreSchema,
+  type StoreDetail,
+  storeDetailSchema,
 } from '@lastsize/contracts';
 import { cookies } from 'next/headers';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { serverEnv } from './env';
 
 /** Server-to-server call to the API. Only the session cookies are forwarded, nothing else. */
@@ -50,4 +56,19 @@ export async function getCategories(): Promise<Category[]> {
   } catch {
     return [];
   }
+}
+
+export async function getCities(): Promise<City[]> {
+  return (await apiGet('/cities', cityListSchema, { revalidate: 3600 })) ?? [];
+}
+
+/** All stores of the signed-in seller, including rejected and blocked ones with the reason. */
+export async function getMyStores(): Promise<SellerStore[]> {
+  return (await apiGet('/seller/stores', z.array(sellerStoreSchema), { withSession: true })) ?? [];
+}
+
+export function getMyStore(storeId: string): Promise<StoreDetail | null> {
+  return apiGet(`/seller/stores/${encodeURIComponent(storeId)}`, storeDetailSchema, {
+    withSession: true,
+  });
 }

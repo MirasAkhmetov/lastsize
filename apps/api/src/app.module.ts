@@ -10,7 +10,7 @@ import { HealthModule } from './health/health.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { APP_LOGGER } from './logging';
 import { SecurityModule } from './security/security.module';
-import { SellerModule } from './seller/seller.module';
+import { StoresModule } from './stores/stores.module';
 
 @Global()
 @Module({})
@@ -41,7 +41,7 @@ export class AppModule {
         HealthModule,
         CatalogModule,
         CustomerModule,
-        SellerModule,
+        StoresModule,
         AdminModule,
       ],
     };

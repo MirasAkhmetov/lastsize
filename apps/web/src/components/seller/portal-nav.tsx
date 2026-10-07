@@ -10,7 +10,7 @@ const ITEMS = [
   { key: 'navProducts', href: '/seller/products', ready: false },
   { key: 'navInventory', href: '/seller/inventory', ready: false },
   { key: 'navImport', href: '/seller/import', ready: false },
-  { key: 'navStore', href: '/seller/store', ready: false },
+  { key: 'navStore', href: '/seller/store', ready: true },
 ] as const;
 
 /** Sidebar on desktop, horizontal scroller on phones. Sections not built yet are shown but disabled. */

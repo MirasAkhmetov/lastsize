@@ -1,16 +1,16 @@
 import { Controller, Get, Header, Inject } from '@nestjs/common';
-import { type Category, categoryTreeSchema } from '@lastsize/contracts';
-import { asc, categories, type Database, eq, sizeCharts } from '@lastsize/db';
+import { type Category, categoryTreeSchema, type City, cityListSchema } from '@lastsize/contracts';
+import { asc, categories, cities, type Database, eq, sizeCharts } from '@lastsize/db';
 import { Public } from '../auth/decorators';
 import { DATABASE } from '../infrastructure/infrastructure.module';
 
-@Controller('categories')
+@Controller()
 export class CategoriesController {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   /** Active category tree with Russian and Kazakh names. Public and cacheable. */
   @Public()
-  @Get()
+  @Get('categories')
   @Header('cache-control', 'public, max-age=60, s-maxage=300')
   async tree(): Promise<Category[]> {
     const rows = await this.db
@@ -42,5 +42,20 @@ export class CategoriesController {
         children: build(row.id),
       }));
     return categoryTreeSchema.parse(build(null));
+  }
+
+  /** Cities where stores can be located. */
+  @Public()
+  @Get('cities')
+  @Header('cache-control', 'public, max-age=300, s-maxage=3600')
+  async cities(): Promise<City[]> {
+    const rows = await this.db.select().from(cities).orderBy(asc(cities.id));
+    return cityListSchema.parse(
+      rows.map((city) => ({
+        id: city.id,
+        slug: city.slug,
+        name: { ru: city.nameRu, kk: city.nameKk },
+      })),
+    );
   }
 }

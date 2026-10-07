@@ -7,7 +7,14 @@ export {
   type ButtonSize,
   type ButtonVariant,
 } from './button';
-export { TextField, type TextFieldProps } from './field';
+export {
+  SelectField,
+  type SelectFieldProps,
+  TextAreaField,
+  type TextAreaFieldProps,
+  TextField,
+  type TextFieldProps,
+} from './field';
 export { DiscountBadge, Pill, type PillTone } from './badge';
 export { Price, type PriceProps } from './price';
 export { SizeChip, type SizeChipProps, type SizeState } from './size-chip';

@@ -1,14 +1,7 @@
-import {
-  auditLogs,
-  eq,
-  storeMembers,
-  stores,
-  storeLocations,
-  userRoles,
-  users,
-} from '@lastsize/db';
+import { auditLogs, eq, stores, users } from '@lastsize/db';
 import * as OTPAuth from 'otpauth';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createClient, PASSWORD } from './client';
 import {
   ALLOWED_ORIGIN,
   cookieHeader,
@@ -17,8 +10,6 @@ import {
   startHarness,
   uniquePhone,
 } from './harness';
-
-const PASSWORD = 'correct-horse-battery';
 
 describe.runIf(integrationEnabled)('authentication and authorization', () => {
   let h: Harness;
@@ -29,66 +20,14 @@ describe.runIf(integrationEnabled)('authentication and authorization', () => {
     await h?.close();
   });
 
-  let ipCounter = 0;
-  /** Each request comes from its own client IP unless a test pins one, so per-IP limits do not interfere. */
-  const json = (
-    method: 'GET' | 'POST' | 'PATCH',
-    url: string,
-    options: {
-      cookie?: string;
-      body?: unknown;
-      headers?: Record<string, string>;
-      ip?: string;
-    } = {},
-  ) =>
-    h.app.inject({
-      method,
-      url,
-      remoteAddress: options.ip ?? `10.0.${Math.floor(++ipCounter / 250)}.${(ipCounter % 250) + 1}`,
-      headers: { ...(options.cookie ? { cookie: options.cookie } : {}), ...options.headers },
-      ...(options.body !== undefined ? { payload: options.body as object } : {}),
-    });
-
-  async function register(phone = uniquePhone(), name = 'Асель') {
-    const response = await json('POST', '/api/v1/auth/register', {
-      body: { phone, name, password: PASSWORD },
-    });
-    expect(response.statusCode).toBe(201);
-    return {
-      phone,
-      cookie: cookieHeader(response),
-      userId: response.json().user.id as string,
-      response,
-    };
-  }
-
-  async function login(phone: string, password = PASSWORD) {
-    return json('POST', '/api/v1/auth/login', { body: { phone, password } });
-  }
-
-  async function createStoreFor(userId: string, role: 'SELLER' | 'SELLER_MANAGER' = 'SELLER') {
-    const suffix = Math.random().toString(36).slice(2, 8);
-    const [store] = await h.database.db
-      .insert(stores)
-      .values({ slug: `store-${suffix}`, name: `Store ${suffix}`, binIin: '123456789012' })
-      .returning();
-    await h.database.db.insert(storeLocations).values({
-      storeId: store!.id,
-      cityId: 1,
-      address: 'Абая 52',
-      schedule: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
-      phone: '+77011234567',
-    });
-    await h.database.db.insert(storeMembers).values({ storeId: store!.id, userId, role });
-    return store!;
-  }
-
-  async function makeStaff(role: 'ADMIN' | 'SUPER_ADMIN' = 'ADMIN') {
-    const account = await register();
-    await h.database.db.insert(userRoles).values({ userId: account.userId, roleCode: role });
-    const response = await login(account.phone);
-    return { ...account, cookie: cookieHeader(response) };
-  }
+  let json: ReturnType<typeof createClient>['json'];
+  let register: ReturnType<typeof createClient>['register'];
+  let login: ReturnType<typeof createClient>['login'];
+  let createStoreFor: ReturnType<typeof createClient>['createStoreFor'];
+  let makeStaff: ReturnType<typeof createClient>['makeStaff'];
+  beforeAll(() => {
+    ({ json, register, login, createStoreFor, makeStaff } = createClient(h));
+  });
 
   describe('sessions', () => {
     it('rejects anonymous access to every protected area', async () => {

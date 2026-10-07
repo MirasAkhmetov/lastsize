@@ -6,3 +6,5 @@ export * from './pagination.js';
 export * from './admin.js';
 export * from './catalog.js';
 export * from './api-client.js';
+export * from './bin-iin.js';
+export * from './stores.js';

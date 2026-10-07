@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 
 const ITEMS = [
   { label: 'Обзор', href: '/', ready: true },
-  { label: 'Продавцы', href: '/sellers', ready: false },
+  { label: 'Продавцы', href: '/sellers', ready: true },
   { label: 'Лента товаров', href: '/products', ready: false },
   { label: 'Заказы', href: '/orders', ready: false },
   { label: 'Пользователи', href: '/users', ready: true },
