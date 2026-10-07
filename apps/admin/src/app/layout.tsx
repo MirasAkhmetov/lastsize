@@ -1,21 +1,10 @@
 import { ToastProvider } from '@lastsize/ui';
 import type { Metadata } from 'next';
-import { Golos_Text, Unbounded } from 'next/font/google';
 import type { ReactNode } from 'react';
+// Fonts are bundled with the app (no requests to Google at build or run time).
+import '@fontsource-variable/golos-text';
+import '@fontsource-variable/unbounded';
 import './globals.css';
-
-const unbounded = Unbounded({
-  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
-  weight: ['700', '900'],
-  variable: '--font-unbounded',
-  display: 'swap',
-});
-const golos = Golos_Text({
-  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-golos',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: { default: 'LastSize admin', template: '%s · LastSize admin' },
@@ -27,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru" className={`${unbounded.variable} ${golos.variable}`}>
+    <html lang="ru">
       <body>
         <ToastProvider>{children}</ToastProvider>
       </body>

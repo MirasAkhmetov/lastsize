@@ -4,6 +4,9 @@
  * Import after `@import 'tailwindcss'` and add `@source` for this package in the app.
  */
 :root {
+  /* Self-hosted variable fonts (@fontsource-variable, SIL OFL), imported by each app's layout. */
+  --font-unbounded: 'Unbounded Variable';
+  --font-golos: 'Golos Text Variable';
   --paper: #f6f6f4;
   --surface: #ffffff;
   --ink: #121316;
