@@ -8,3 +8,4 @@ export * from './catalog.js';
 export * from './api-client.js';
 export * from './bin-iin.js';
 export * from './stores.js';
+export * from './products.js';

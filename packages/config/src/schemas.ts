@@ -39,6 +39,13 @@ export const apiEnvSchema = z.object({
     .default('ls:'),
   /** Encrypts secrets stored in the database (TOTP seeds, marketplace API tokens). */
   SECRETS_ENCRYPTION_KEY: encryptionKey,
+  /** S3-compatible object storage for product photos. */
+  S3_ENDPOINT: httpUrl,
+  S3_REGION: z.string().min(1).default('kz-almaty-1'),
+  S3_ACCESS_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(8),
+  S3_BUCKET_PUBLIC: z.string().regex(/^[a-z0-9][a-z0-9.-]{2,62}$/),
+  S3_BUCKET_PRIVATE: z.string().regex(/^[a-z0-9][a-z0-9.-]{2,62}$/),
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

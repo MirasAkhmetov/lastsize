@@ -5,7 +5,6 @@ import {
   boolean,
   check,
   index,
-  integer,
   pgEnum,
   pgTable,
   smallint,
@@ -16,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, id, updatedAt } from './columns.js';
 import { users } from './identity.js';
+import { storeMedia } from './media.js';
 import { stores } from './stores.js';
 
 export const gender = pgEnum('gender', ['WOMEN', 'MEN', 'UNISEX', 'KIDS']);
@@ -112,6 +112,8 @@ export const products = pgTable(
     gender: gender('gender').notNull(),
     condition: productCondition('condition').notNull().default('NEW'),
     status: productStatus('status').notNull().default('DRAFT'),
+    /** Why the system flagged the product for an admin look (status FLAGGED). */
+    flagReason: text('flag_reason'),
     removedReason: text('removed_reason'),
     removedBy: uuid('removed_by').references(() => users.id),
     removedAt: timestamp('removed_at', { withTimezone: true }),
@@ -198,12 +200,14 @@ export const productImages = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
     colorId: smallint('color_id').references(() => colors.id),
-    /** Object storage key of the original; resized versions are derived from it. */
-    storageKey: text('storage_key').notNull(),
-    width: integer('width').notNull(),
-    height: integer('height').notNull(),
+    mediaId: uuid('media_id')
+      .notNull()
+      .references(() => storeMedia.id),
     position: smallint('position').notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('product_images_product_position_key').on(t.productId, t.position)],
+  (t) => [
+    uniqueIndex('product_images_product_position_key').on(t.productId, t.position),
+    uniqueIndex('product_images_product_media_key').on(t.productId, t.mediaId),
+  ],
 );

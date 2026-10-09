@@ -8,6 +8,8 @@ import {
   adminUserListSchema,
   type MeResponse,
   meResponseSchema,
+  type ProductList,
+  productListSchema,
   type StoreStatus,
 } from '@lastsize/contracts';
 import { cookies } from 'next/headers';
@@ -63,4 +65,15 @@ export function getStores(
 
 export function getStore(storeId: string): Promise<AdminStoreDetail | null> {
   return apiGet(`/admin/stores/${encodeURIComponent(storeId)}`, adminStoreDetailSchema);
+}
+
+export function getProductFeed(
+  filter: 'flagged' | 'recent' | 'removed',
+  limit: number,
+  offset: number,
+): Promise<ProductList | null> {
+  return apiGet(
+    `/admin/products?filter=${filter}&limit=${limit}&offset=${offset}`,
+    productListSchema,
+  );
 }

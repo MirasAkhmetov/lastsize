@@ -29,6 +29,34 @@
       "when": 1791217068115,
       "tag": "0003_audit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791537527491,
+      "tag": "0004_store_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791537528708,
+      "tag": "0005_product_images_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791537579428,
+      "tag": "0006_price_history_public",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791537579787,
+      "tag": "0007_price_history_public_trigger",
+      "breakpoints": true
     }
   ]
 }

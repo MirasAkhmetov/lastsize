@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setVariantPrices } from '../src/repositories/pricing.js';
+import { recordPublishedPrices, setVariantPrices } from '../src/repositories/pricing.js';
 import { ROLES } from '../src/rbac.js';
 import { seedReferenceData } from '../src/seed.js';
 import {
@@ -93,6 +93,46 @@ describe.runIf(testDatabaseUrl)('catalog and reference data', () => {
         ),
       ),
     ).toMatch(/append-only/);
+  });
+
+  it('ignores draft edits for the reference price and measures reductions from public prices', async () => {
+    const { variant } = await createVariantWithStock(t.db, {
+      stock: 1,
+      originalPrice: 10_000_000,
+      salePrice: 4_000_000,
+    });
+    // A typo fixed before publishing must not hurt the discount.
+    await setVariantPrices(
+      t.db,
+      variant.id,
+      { originalPrice: 10_000_000, salePrice: 3_500_000 },
+      { source: 'SELLER' },
+    );
+    await recordPublishedPrices(t.db, [variant.id], null);
+    const read = async () =>
+      (await t.db.select().from(productVariants).where(eq(productVariants.id, variant.id)))[0]!;
+    expect(await read()).toMatchObject({ referencePrice: null, discountPercent: 65 });
+
+    // Published at 35 000 ₸; a later cut to 30 000 ₸ is a 14% discount, not 70%.
+    await setVariantPrices(
+      t.db,
+      variant.id,
+      { originalPrice: 10_000_000, salePrice: 3_000_000 },
+      { source: 'SELLER', isPublic: true },
+    );
+    expect(await read()).toMatchObject({ referencePrice: 3_500_000, discountPercent: 14 });
+
+    const history = await t.db
+      .select()
+      .from(priceHistory)
+      .where(eq(priceHistory.variantId, variant.id))
+      .orderBy(priceHistory.createdAt);
+    expect(history.map((row) => [row.salePrice, row.isPublic])).toEqual([
+      [4_000_000, false],
+      [3_500_000, false],
+      [3_500_000, true],
+      [3_000_000, true],
+    ]);
   });
 
   it('allows exactly one address per store', async () => {

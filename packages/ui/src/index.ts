@@ -19,6 +19,7 @@ export { DiscountBadge, Pill, type PillTone } from './badge';
 export { Price, type PriceProps } from './price';
 export { SizeChip, type SizeChipProps, type SizeState } from './size-chip';
 export { Chip, type ChipProps } from './chip';
+export { ProductImage, type ProductImageProps } from './product-image';
 export { ProductCard, type ProductCardProps, type ProductCardSize } from './product-card';
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
 export { Dialog, Sheet } from './dialog';

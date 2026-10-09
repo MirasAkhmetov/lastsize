@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { Logger } from '@lastsize/logger';
@@ -9,6 +10,7 @@ import { AppModule } from './app.module';
 import { ProblemDetailsFilter } from './common/problem-details.filter';
 import { PinoNestLogger } from './common/pino-nest-logger';
 import type { ApiEnv } from './config/api-env';
+import { MAX_UPLOAD_BYTES } from './media/media.controller';
 import { createCsrfHook } from './security/csrf';
 
 export const API_PREFIX = 'api/v1';
@@ -46,6 +48,9 @@ export async function createApp(env: ApiEnv, logger: Logger): Promise<NestFastif
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
   await app.register(cookie);
+  await app.register(multipart, {
+    limits: { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5, parts: 6 },
+  });
   app.getHttpAdapter().getInstance().addHook('onRequest', createCsrfHook(env.CORS_ORIGINS));
   app.enableCors({
     origin: [...env.CORS_ORIGINS],

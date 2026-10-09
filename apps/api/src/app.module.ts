@@ -8,6 +8,8 @@ import { API_ENV, type ApiEnv } from './config/api-env';
 import { CustomerModule } from './customer/customer.module';
 import { HealthModule } from './health/health.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
+import { MediaModule } from './media/media.module';
+import { ProductsModule } from './products/products.module';
 import { APP_LOGGER } from './logging';
 import { SecurityModule } from './security/security.module';
 import { StoresModule } from './stores/stores.module';
@@ -42,6 +44,8 @@ export class AppModule {
         CatalogModule,
         CustomerModule,
         StoresModule,
+        MediaModule,
+        ProductsModule,
         AdminModule,
       ],
     };

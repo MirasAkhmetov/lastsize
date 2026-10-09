@@ -1,0 +1,1 @@
+ALTER TABLE "price_history" ADD COLUMN "is_public" boolean DEFAULT false NOT NULL;

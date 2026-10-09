@@ -120,12 +120,24 @@ export const TextAreaField = forwardRef<HTMLTextAreaElement, TextAreaFieldProps>
   },
 );
 
+function groupOptions(options: SelectFieldProps['options']) {
+  const groups: [string | null, SelectFieldProps['options']][] = [];
+  for (const option of options) {
+    const key = option.group ?? null;
+    const last = groups[groups.length - 1];
+    if (last && last[0] === key) last[1].push(option);
+    else groups.push([key, [option]]);
+  }
+  return groups;
+}
+
 export interface SelectFieldProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id'> {
   label: string;
   hint?: string;
   error?: string;
   id?: string;
-  options: { value: string; label: string }[];
+  /** Options with a `group` are rendered inside <optgroup>s, in the order given. */
+  options: { value: string; label: string; group?: string }[];
 }
 
 export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(function SelectField(
@@ -144,11 +156,23 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(funct
         className={controlClasses(error)}
         {...props}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {groupOptions(options).map(([group, items]) =>
+          group === null ? (
+            items.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))
+          ) : (
+            <optgroup key={group} label={group}>
+              {items.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+          ),
+        )}
       </select>
     </FieldShell>
   );

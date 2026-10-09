@@ -1,6 +1,26 @@
 import { Controller, Get, Header, Inject } from '@nestjs/common';
-import { type Category, categoryTreeSchema, type City, cityListSchema } from '@lastsize/contracts';
-import { asc, categories, cities, type Database, eq, sizeCharts } from '@lastsize/db';
+import {
+  type Category,
+  categoryTreeSchema,
+  type City,
+  cityListSchema,
+  type Color,
+  colorListSchema,
+  minDiscountSchema,
+  type SizeChart,
+  sizeChartListSchema,
+} from '@lastsize/contracts';
+import {
+  asc,
+  categories,
+  cities,
+  colors,
+  type Database,
+  eq,
+  platformSettings,
+  sizeCharts,
+  sizeValues,
+} from '@lastsize/db';
 import { Public } from '../auth/decorators';
 import { DATABASE } from '../infrastructure/infrastructure.module';
 
@@ -57,5 +77,53 @@ export class CategoriesController {
         name: { ru: city.nameRu, kk: city.nameKk },
       })),
     );
+  }
+
+  /** Size systems with their values, in display order. */
+  @Public()
+  @Get('size-charts')
+  @Header('cache-control', 'public, max-age=300, s-maxage=3600')
+  async sizeCharts(): Promise<SizeChart[]> {
+    const [charts, values] = await Promise.all([
+      this.db.select().from(sizeCharts).orderBy(asc(sizeCharts.id)),
+      this.db.select().from(sizeValues).orderBy(asc(sizeValues.chartId), asc(sizeValues.position)),
+    ]);
+    return sizeChartListSchema.parse(
+      charts.map((chart) => ({
+        id: chart.id,
+        code: chart.code,
+        name: { ru: chart.nameRu, kk: chart.nameKk },
+        values: values
+          .filter((value) => value.chartId === chart.id)
+          .map((value) => ({ id: value.id, code: value.code })),
+      })),
+    );
+  }
+
+  @Public()
+  @Get('colors')
+  @Header('cache-control', 'public, max-age=300, s-maxage=3600')
+  async colors(): Promise<Color[]> {
+    const rows = await this.db.select().from(colors).orderBy(asc(colors.id));
+    return colorListSchema.parse(
+      rows.map((row) => ({
+        id: row.id,
+        code: row.code,
+        name: { ru: row.nameRu, kk: row.nameKk },
+        hex: row.hex,
+      })),
+    );
+  }
+
+  /** The minimum discount for publishing, shown in the seller form. */
+  @Public()
+  @Get('settings/min-discount')
+  @Header('cache-control', 'public, max-age=60')
+  async minDiscount(): Promise<{ minDiscountPercent: number }> {
+    const [row] = await this.db
+      .select()
+      .from(platformSettings)
+      .where(eq(platformSettings.key, 'catalog.min_discount_percent'));
+    return minDiscountSchema.parse({ minDiscountPercent: Number(row?.value ?? 30) });
   }
 }

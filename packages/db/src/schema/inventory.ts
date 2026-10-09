@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -95,6 +96,8 @@ export const priceHistory = pgTable(
     originalPrice: bigint('original_price', { mode: 'number' }).notNull(),
     salePrice: bigint('sale_price', { mode: 'number' }).notNull(),
     source: priceChangeSource('source').notNull(),
+    /** The price was visible to buyers (product published). Only these count for the 30-day reference. */
+    isPublic: boolean('is_public').notNull().default(false),
     changedBy: uuid('changed_by').references(() => users.id),
     createdAt: createdAt(),
   },

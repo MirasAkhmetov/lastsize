@@ -11,6 +11,17 @@ import { loadApiEnv } from '../src/config/api-env';
 export const integrationEnabled = Boolean(
   process.env.TEST_DATABASE_URL && process.env.TEST_REDIS_URL,
 );
+/** Product and photo tests also need S3-compatible storage (SeaweedFS locally and in CI). */
+export const storageEnabled = integrationEnabled && Boolean(process.env.TEST_S3_ENDPOINT);
+
+/** Storage settings for tests; points nowhere when no test storage is configured. */
+export const testStorageEnv = {
+  S3_ENDPOINT: process.env.TEST_S3_ENDPOINT ?? 'http://127.0.0.1:1',
+  S3_ACCESS_KEY: process.env.TEST_S3_ACCESS_KEY ?? 'test',
+  S3_SECRET_KEY: process.env.TEST_S3_SECRET_KEY ?? 'test-secret',
+  S3_BUCKET_PUBLIC: 'lastsize-test-public',
+  S3_BUCKET_PRIVATE: 'lastsize-test-private',
+};
 export const ALLOWED_ORIGIN = 'http://localhost:3000';
 
 /** Silent by default; TEST_LOG=error (or debug) prints API logs while debugging a test. */
@@ -35,6 +46,7 @@ export async function startHarness(): Promise<Harness> {
     REDIS_URL: process.env.TEST_REDIS_URL,
     REDIS_KEY_PREFIX: redisKeyPrefix,
     SECRETS_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+    ...testStorageEnv,
   });
   const app = await createApp(env, silentLogger);
   await app.init();

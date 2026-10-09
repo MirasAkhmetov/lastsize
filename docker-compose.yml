@@ -40,6 +40,8 @@ services:
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
     ports:
       - '127.0.0.1:${S3_PORT:-9000}:9000'
+      # Read access to processed photos for the dev proxy (/media); never exposed in production.
+      - '127.0.0.1:${S3_FILER_PORT:-8888}:8888'
     volumes:
       - storage-data:/data
 

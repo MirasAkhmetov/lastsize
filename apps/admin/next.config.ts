@@ -30,7 +30,12 @@ const config: NextConfig = {
   },
   async rewrites() {
     const api = process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
-    return [{ source: '/api/:path*', destination: `${api}/api/:path*` }];
+    const media = process.env.MEDIA_ORIGIN_URL ?? 'http://localhost:8888/buckets/lastsize-public';
+    return [
+      { source: '/api/:path*', destination: `${api}/api/:path*` },
+      // Processed product photos (in production Caddy serves /media directly).
+      { source: '/media/:path*', destination: `${media}/:path*` },
+    ];
   },
 };
 

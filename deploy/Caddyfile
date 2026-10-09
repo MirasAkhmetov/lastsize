@@ -11,6 +11,23 @@
 	}
 
 	# The API is reachable only through this proxy; its container publishes no ports.
+	# Processed product photos, straight from the public bucket. Only the exact file pattern
+	# produced by the API is served: no directory listings, no other buckets, read-only.
+	@media {
+		method GET HEAD
+		path_regexp media ^/media/(products/[0-9a-f-]{36}/[0-9a-f-]{36}/(320|640|1080)\.(avif|webp))$
+	}
+	handle @media {
+		rewrite * /buckets/{$S3_BUCKET_PUBLIC}/{re.media.1}
+		reverse_proxy storage:8888 {
+			header_down -Server
+			header_down Cache-Control "public, max-age=31536000, immutable"
+		}
+	}
+	handle /media/* {
+		respond 404
+	}
+
 	handle /api/* {
 		reverse_proxy api:4000 {
 			header_up X-Request-Id {http.request.uuid}
@@ -35,6 +52,23 @@
 	header {
 		-Server
 		X-Robots-Tag "noindex, nofollow"
+	}
+
+	# Processed product photos, straight from the public bucket. Only the exact file pattern
+	# produced by the API is served: no directory listings, no other buckets, read-only.
+	@media {
+		method GET HEAD
+		path_regexp media ^/media/(products/[0-9a-f-]{36}/[0-9a-f-]{36}/(320|640|1080)\.(avif|webp))$
+	}
+	handle @media {
+		rewrite * /buckets/{$S3_BUCKET_PUBLIC}/{re.media.1}
+		reverse_proxy storage:8888 {
+			header_down -Server
+			header_down Cache-Control "public, max-age=31536000, immutable"
+		}
+	}
+	handle /media/* {
+		respond 404
 	}
 
 	handle /api/* {

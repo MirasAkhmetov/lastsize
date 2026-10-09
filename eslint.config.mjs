@@ -56,13 +56,12 @@ export default tseslint.config(
         {
           patterns: [
             {
+              // @lastsize/domain (pure rules, no I/O) is allowed so the UI uses the same discount formula.
               group: [
                 '@lastsize/db',
                 '@lastsize/db/*',
                 '@lastsize/providers',
                 '@lastsize/providers/*',
-                '@lastsize/domain',
-                '@lastsize/domain/*',
                 'pg',
                 'ioredis',
                 'bullmq',

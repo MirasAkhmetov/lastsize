@@ -19,6 +19,11 @@ async function startApp(overrides: Record<string, string>): Promise<NestFastifyA
     DATABASE_URL: 'postgres://nobody:nothing@127.0.0.1:1/none',
     REDIS_URL: 'redis://127.0.0.1:1',
     SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+    S3_ENDPOINT: 'http://127.0.0.1:1',
+    S3_ACCESS_KEY: 'test',
+    S3_SECRET_KEY: 'test-secret',
+    S3_BUCKET_PUBLIC: 'lastsize-test-public',
+    S3_BUCKET_PRIVATE: 'lastsize-test-private',
     ...overrides,
   });
   const app = await createApp(env, silentLogger);

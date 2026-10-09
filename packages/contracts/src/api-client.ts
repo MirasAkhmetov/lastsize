@@ -61,3 +61,31 @@ export async function apiRequest<T>(
   }
   return payload as T;
 }
+
+/** Uploads one file as multipart/form-data (field "file") to our own origin. */
+export async function apiUpload<T>(path: string, file: Blob, filename: string): Promise<T> {
+  const form = new FormData();
+  form.append('file', file, filename);
+  let response: Response;
+  try {
+    response = await fetch(`/api/v1${path}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: form,
+      headers: { accept: 'application/json' },
+    });
+  } catch {
+    throw new NetworkError();
+  }
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const problem = problemDetailsSchema.safeParse(payload);
+    const retryAfter = Number(response.headers.get('retry-after'));
+    throw new ApiError(
+      response.status,
+      problem.success ? problem.data : null,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+    );
+  }
+  return payload as T;
+}

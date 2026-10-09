@@ -8,6 +8,11 @@ const validApiEnv = {
   DATABASE_URL: 'postgres://app:s3cret-value@db:5432/lastsize',
   REDIS_URL: 'redis://redis:6379',
   SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+  S3_ENDPOINT: 'http://storage:9000',
+  S3_ACCESS_KEY: 'access',
+  S3_SECRET_KEY: 'secret-key-value',
+  S3_BUCKET_PUBLIC: 'lastsize-public',
+  S3_BUCKET_PRIVATE: 'lastsize-private',
 };
 
 describe('loadEnv', () => {

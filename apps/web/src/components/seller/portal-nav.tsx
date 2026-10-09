@@ -7,7 +7,7 @@ import { Link, usePathname } from '@/i18n/navigation';
 const ITEMS = [
   { key: 'navOverview', href: '/seller/dashboard', ready: true },
   { key: 'navOrders', href: '/seller/orders', ready: false },
-  { key: 'navProducts', href: '/seller/products', ready: false },
+  { key: 'navProducts', href: '/seller/products', ready: true },
   { key: 'navInventory', href: '/seller/inventory', ready: false },
   { key: 'navImport', href: '/seller/import', ready: false },
   { key: 'navStore', href: '/seller/store', ready: true },

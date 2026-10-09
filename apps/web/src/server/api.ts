@@ -1,5 +1,14 @@
 import 'server-only';
 import {
+  type Color,
+  colorListSchema,
+  minDiscountSchema,
+  type ProductList,
+  productListSchema,
+  type SellerProduct,
+  sellerProductSchema,
+  type SizeChart,
+  sizeChartListSchema,
   type Category,
   categoryTreeSchema,
   type City,
@@ -71,4 +80,42 @@ export function getMyStore(storeId: string): Promise<StoreDetail | null> {
   return apiGet(`/seller/stores/${encodeURIComponent(storeId)}`, storeDetailSchema, {
     withSession: true,
   });
+}
+
+export async function getSizeCharts(): Promise<SizeChart[]> {
+  return (await apiGet('/size-charts', sizeChartListSchema, { revalidate: 3600 })) ?? [];
+}
+
+export async function getColors(): Promise<Color[]> {
+  return (await apiGet('/colors', colorListSchema, { revalidate: 3600 })) ?? [];
+}
+
+export async function getMinDiscount(): Promise<number> {
+  return (
+    (await apiGet('/settings/min-discount', minDiscountSchema, { revalidate: 60 }))
+      ?.minDiscountPercent ?? 30
+  );
+}
+
+export async function getMyProducts(storeId: string): Promise<ProductList> {
+  return (
+    (await apiGet(
+      `/seller/stores/${encodeURIComponent(storeId)}/products?limit=100`,
+      productListSchema,
+      { withSession: true },
+    )) ?? {
+      items: [],
+      total: 0,
+    }
+  );
+}
+
+export function getMyProduct(storeId: string, productId: string): Promise<SellerProduct | null> {
+  return apiGet(
+    `/seller/stores/${encodeURIComponent(storeId)}/products/${encodeURIComponent(productId)}`,
+    sellerProductSchema,
+    {
+      withSession: true,
+    },
+  );
 }
