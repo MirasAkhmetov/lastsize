@@ -4,6 +4,8 @@ import { CoreModule } from './app.module';
 import { AuditModule } from './audit/audit.module';
 import type { ApiEnv } from './config/api-env';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
+import { MaintenanceWorker } from './orders/maintenance.worker';
+import { OrdersModule } from './orders/orders.module';
 import { SecurityModule } from './security/security.module';
 import { SyncQueueModule } from './sync/sync-queue';
 import { SyncModule } from './sync/sync.module';
@@ -22,8 +24,9 @@ export class WorkerModule {
         AuditModule,
         SyncQueueModule,
         SyncModule,
+        OrdersModule,
       ],
-      providers: [SyncWorker],
+      providers: [SyncWorker, MaintenanceWorker],
     };
   }
 }

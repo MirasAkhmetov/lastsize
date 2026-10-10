@@ -34,6 +34,15 @@ import {
   importJobListSchema,
   type Integration,
   integrationListSchema,
+  type OrderDetail,
+  orderDetailSchema,
+  orderListSchema,
+  type OrderSummary,
+  type SellerOrderDetail,
+  sellerOrderDetailSchema,
+  type SellerOrderList,
+  sellerOrderListSchema,
+  type SellerOrderStatus,
 } from '@lastsize/contracts';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
@@ -190,6 +199,37 @@ export async function getImportJobs(storeId: string): Promise<ImportJobList> {
 
 export function getImportJob(storeId: string, jobId: string): Promise<ImportJob | null> {
   return apiGet(`${storePath(storeId)}/imports/${encodeURIComponent(jobId)}`, importJobSchema, {
+    withSession: true,
+  });
+}
+
+/** Orders placed from this device (guest cookie). */
+export async function getMyOrders(): Promise<OrderSummary[]> {
+  return (await apiGet('/orders', orderListSchema, { withSession: true })) ?? [];
+}
+
+/** One order: opens with this device's cookie or with the order-link token. */
+export function getOrder(number: string, token?: string): Promise<OrderDetail | null> {
+  if (!/^\d{1,12}$/.test(number)) return Promise.resolve(null);
+  const query = token && /^[A-Za-z0-9_-]{20,64}$/.test(token) ? `?t=${token}` : '';
+  return apiGet(`/orders/${number}${query}`, orderDetailSchema, { withSession: true });
+}
+
+export async function getStoreOrders(
+  storeId: string,
+  status?: SellerOrderStatus,
+): Promise<SellerOrderList> {
+  const query = status ? `?status=${status}` : '';
+  return (
+    (await apiGet(`${storePath(storeId)}/orders${query}`, sellerOrderListSchema, {
+      withSession: true,
+    })) ?? { items: [], total: 0, counts: {} as SellerOrderList['counts'] }
+  );
+}
+
+export function getStoreOrder(storeId: string, id: string): Promise<SellerOrderDetail | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return Promise.resolve(null);
+  return apiGet(`${storePath(storeId)}/orders/${id}`, sellerOrderDetailSchema, {
     withSession: true,
   });
 }

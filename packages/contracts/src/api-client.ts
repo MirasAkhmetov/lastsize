@@ -33,16 +33,18 @@ export async function apiRequest<T>(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
+  options: { headers?: Record<string, string> } = {},
 ): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api/v1${path}`, {
       method,
       credentials: 'same-origin',
-      headers:
-        body === undefined
-          ? { accept: 'application/json' }
-          : { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        accept: 'application/json',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...options.headers,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

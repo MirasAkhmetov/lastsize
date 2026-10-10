@@ -93,6 +93,7 @@ export function StoreForm({ store, cities }: { store: StoreDetail | null; cities
         address: text('address'),
         phone: text('phone'),
         pickupEnabled: data.get('pickupEnabled') === 'on',
+        deliveryEnabled: data.get('deliveryEnabled') === 'on',
         schedule: Object.fromEntries(
           WEEKDAYS.map((day) => [
             day,
@@ -232,6 +233,18 @@ export function StoreForm({ store, cities }: { store: StoreDetail | null; cities
           />
           {t('pickup')}
         </label>
+        <label className="flex items-center gap-2 text-[14px]">
+          <input
+            type="checkbox"
+            name="deliveryEnabled"
+            defaultChecked={store?.location.deliveryEnabled ?? true}
+            className="size-4 accent-current"
+          />
+          {t('deliveryOption')}
+        </label>
+        {fieldError('location.deliveryEnabled') && (
+          <p className="text-xs text-sale">{fieldError('location.deliveryEnabled')}</p>
+        )}
       </fieldset>
 
       <fieldset className="grid gap-3">

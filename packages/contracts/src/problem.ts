@@ -8,6 +8,12 @@ export const errorCodes = [
   'FORBIDDEN',
   'NOT_FOUND',
   'CONFLICT',
+  /** Checkout: some sizes ran out; `errors` lists them (path = variant id). */
+  'OUT_OF_STOCK',
+  /** Checkout: prices in the cart changed; the cart now shows the new ones. */
+  'PRICE_CHANGED',
+  /** Checkout: the cart changed (goods removed from sale, stores differ from the request). */
+  'CART_CHANGED',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
   'SERVICE_UNAVAILABLE',

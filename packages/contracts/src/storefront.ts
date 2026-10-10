@@ -106,6 +106,7 @@ export const publicStoreSchema = z.object({
   phone: z.string(),
   schedule: z.record(z.string(), z.array(z.tuple([z.string(), z.string()]))),
   pickupEnabled: z.boolean(),
+  deliveryEnabled: z.boolean(),
   productCount: z.number().int(),
   since: z.iso.datetime({ offset: true }),
 });

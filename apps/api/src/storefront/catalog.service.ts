@@ -153,7 +153,7 @@ export class CatalogService {
                par.slug AS par_slug, par.name_ru AS par_ru, par.name_kk AS par_kk,
                s.slug AS store_slug, s.name AS store_name, s.instagram,
                c.name_ru AS city_ru, c.name_kk AS city_kk,
-               sl.address, sl.phone, sl.schedule, sl.pickup_enabled
+               sl.address, sl.phone, sl.schedule, sl.pickup_enabled, sl.delivery_enabled
         FROM products p
         JOIN stores s ON s.id = p.store_id
         JOIN store_locations sl ON sl.store_id = s.id
@@ -261,6 +261,7 @@ export class CatalogService {
         phone: row.phone as string,
         schedule: row.schedule as PublicStore['schedule'],
         pickupEnabled: row.pickup_enabled as boolean,
+        deliveryEnabled: row.delivery_enabled as boolean,
       },
       priceHistory: dedupeHistory(history).map((point) => ({
         date: new Date(point.created_at).toISOString(),
@@ -277,7 +278,7 @@ export class CatalogService {
       .execute<Record<string, unknown>>(
         sql`
         SELECT s.slug, s.name, s.description, s.instagram, s.verified_at,
-               c.name_ru, c.name_kk, sl.address, sl.phone, sl.schedule, sl.pickup_enabled,
+               c.name_ru, c.name_kk, sl.address, sl.phone, sl.schedule, sl.pickup_enabled, sl.delivery_enabled,
                (SELECT count(*) FROM products p WHERE p.store_id = s.id AND p.status IN ('ACTIVE', 'FLAGGED'))::int AS product_count
         FROM stores s
         JOIN store_locations sl ON sl.store_id = s.id
@@ -296,6 +297,7 @@ export class CatalogService {
       phone: row.phone as string,
       schedule: row.schedule as PublicStore['schedule'],
       pickupEnabled: row.pickup_enabled as boolean,
+      deliveryEnabled: row.delivery_enabled as boolean,
       productCount: Number(row.product_count),
       since: new Date(row.verified_at as string).toISOString(),
     };

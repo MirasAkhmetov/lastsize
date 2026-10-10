@@ -6,3 +6,4 @@ export * from './settings.js';
 export * from './security.js';
 export * from './media.js';
 export * from './integrations.js';
+export * from './orders.js';

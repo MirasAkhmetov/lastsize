@@ -108,6 +108,8 @@ export const storeLocations = pgTable(
     schedule: jsonb('schedule').$type<StoreSchedule>().notNull(),
     phone: text('phone').notNull(),
     pickupEnabled: boolean('pickup_enabled').notNull().default(true),
+    /** The store sends orders by courier (it calls Yandex Go / inDrive; the buyer pays). */
+    deliveryEnabled: boolean('delivery_enabled').notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

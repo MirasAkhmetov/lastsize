@@ -26,6 +26,7 @@ import { allowedFrom, nextStoreStatus, type StoreTransition, uniqueSlug } from '
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
+import { ValidationFailedException } from '../security/zod-validation.pipe';
 
 export interface StoreLocationInput {
   cityId: number;
@@ -33,6 +34,15 @@ export interface StoreLocationInput {
   phone: string;
   schedule: StoreSchedule;
   pickupEnabled: boolean;
+  deliveryEnabled: boolean;
+}
+
+/** Buyers must have at least one way to receive an order: pickup or courier. */
+function assertReceivable(location: { pickupEnabled?: boolean; deliveryEnabled?: boolean }) {
+  if (location.pickupEnabled === false && location.deliveryEnabled === false)
+    throw new ValidationFailedException([
+      { path: 'location.deliveryEnabled', message: 'fulfillment.none' },
+    ]);
 }
 
 export interface CreateStoreInput {
@@ -81,6 +91,7 @@ export class StoresService {
    */
   async create(input: CreateStoreInput, actor: Actor): Promise<string> {
     await this.assertCity(input.location.cityId);
+    assertReceivable(input.location);
     const storeId = await this.db.transaction(async (tx) => {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`store-owner:${actor.userId}`}))`,
@@ -158,6 +169,14 @@ export class StoresService {
         })
         .where(eq(stores.id, storeId));
       if (location && Object.keys(location).length > 0) {
+        const [current] = await tx
+          .select({
+            pickupEnabled: storeLocations.pickupEnabled,
+            deliveryEnabled: storeLocations.deliveryEnabled,
+          })
+          .from(storeLocations)
+          .where(eq(storeLocations.storeId, storeId));
+        assertReceivable({ ...current!, ...location });
         await tx.update(storeLocations).set(location).where(eq(storeLocations.storeId, storeId));
       }
       return transition;
@@ -384,6 +403,7 @@ export class StoresService {
         phone: storeLocations.phone,
         schedule: storeLocations.schedule,
         pickupEnabled: storeLocations.pickupEnabled,
+        deliveryEnabled: storeLocations.deliveryEnabled,
       })
       .from(stores)
       .innerJoin(storeLocations, eq(storeLocations.storeId, stores.id))
@@ -412,6 +432,7 @@ export class StoresService {
         phone: row.phone,
         schedule: row.schedule,
         pickupEnabled: row.pickupEnabled,
+        deliveryEnabled: row.deliveryEnabled,
       },
     };
   }

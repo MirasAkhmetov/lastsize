@@ -43,12 +43,20 @@ const instagramSchema = z
   )
   .pipe(z.string().regex(/^[A-Za-z0-9._]{1,30}$/, 'instagram.invalid'));
 
-export const storeLocationInputSchema = z.strictObject({
+const storeLocationFields = {
   cityId: z.number().int().positive('city.required'),
   address: z.string().trim().min(5, 'address.tooShort').max(200, 'address.tooLong'),
   phone: kzPhoneSchema,
   schedule: scheduleSchema,
-  pickupEnabled: z.boolean().default(true),
+  pickupEnabled: z.boolean(),
+  /** The store sends orders by courier (it calls Yandex Go / inDrive; the buyer pays). */
+  deliveryEnabled: z.boolean(),
+};
+
+export const storeLocationInputSchema = z.strictObject({
+  ...storeLocationFields,
+  pickupEnabled: storeLocationFields.pickupEnabled.default(true),
+  deliveryEnabled: storeLocationFields.deliveryEnabled.default(true),
 });
 
 export const createStoreRequestSchema = z.strictObject({
@@ -65,7 +73,8 @@ export type CreateStoreRequest = z.input<typeof createStoreRequestSchema>;
 export const updateStoreRequestSchema = createStoreRequestSchema
   .omit({ location: true })
   .partial()
-  .extend({ location: storeLocationInputSchema.partial().strict().optional() })
+  // No defaults here: a field left out of an update keeps its current value.
+  .extend({ location: z.strictObject(storeLocationFields).partial().optional() })
   .strict();
 export type UpdateStoreRequest = z.input<typeof updateStoreRequestSchema>;
 
@@ -76,6 +85,7 @@ export const storeLocationSchema = z.object({
   phone: z.string(),
   schedule: z.record(z.string(), z.array(z.tuple([z.string(), z.string()]))),
   pickupEnabled: z.boolean(),
+  deliveryEnabled: z.boolean(),
 });
 
 export const storeDetailSchema = z.object({

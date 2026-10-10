@@ -364,6 +364,32 @@ describe.runIf(integrationEnabled)('stores', () => {
     });
   });
 
+  it('keeps at least one way to receive orders', async () => {
+    const { store, cookie } = await sellerWithStore();
+    expect(store).toMatchObject({ location: { pickupEnabled: true, deliveryEnabled: true } });
+    const pickupOnly = await c.json('PATCH', `/api/v1/seller/stores/${store.id}`, {
+      cookie,
+      body: { location: { deliveryEnabled: false } },
+    });
+    expect(pickupOnly.json().location).toMatchObject({
+      pickupEnabled: true,
+      deliveryEnabled: false,
+    });
+    // Changing only the address keeps the switches as they are.
+    const moved = await c.json('PATCH', `/api/v1/seller/stores/${store.id}`, {
+      cookie,
+      body: { location: { address: 'Абая 100, офис 2' } },
+    });
+    expect(moved.json().location).toMatchObject({ pickupEnabled: true, deliveryEnabled: false });
+    const nothing = await c.json('PATCH', `/api/v1/seller/stores/${store.id}`, {
+      cookie,
+      body: { location: { pickupEnabled: false } },
+    });
+    expect(nothing.json().errors).toEqual([
+      { path: 'location.deliveryEnabled', message: 'fulfillment.none' },
+    ]);
+  });
+
   it('serves the list of cities publicly', async () => {
     const response = await c.json('GET', '/api/v1/cities');
     expect(response.json()[0]).toEqual({

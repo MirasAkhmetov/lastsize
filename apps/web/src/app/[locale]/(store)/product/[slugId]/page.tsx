@@ -200,7 +200,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
               {product.store.pickupEnabled ? t('pickup') : t('noPickup')}
             </p>
           </section>
-          <Notice>{t('delivery')}</Notice>
+          {product.store.deliveryEnabled && <Notice>{t('delivery')}</Notice>}
           <p className="text-[12.5px] text-muted">{t('returns')}</p>
 
           <section className="grid gap-2">

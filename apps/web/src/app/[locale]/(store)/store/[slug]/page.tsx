@@ -70,6 +70,7 @@ export default async function StorePage({
           <p className="text-[13.5px] tabular-nums select-all">{store.phone}</p>
           <div className="flex flex-wrap gap-2">
             {store.pickupEnabled && <Pill tone="ok">{t('pickup')}</Pill>}
+            {store.deliveryEnabled && <Pill tone="ok">{t('deliveryOption')}</Pill>}
             {store.instagram && <Pill tone="info">Instagram: @{store.instagram}</Pill>}
           </div>
           {store.description && (

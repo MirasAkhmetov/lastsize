@@ -4,6 +4,7 @@ import { cn } from '@lastsize/ui';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
 import { BagIcon, GridIcon, HeartIcon, HomeIcon, UserIcon } from '../icons';
+import { CartBadge } from './cart-count';
 
 const TABS = [
   { key: 'home', href: '/', icon: HomeIcon },
@@ -30,11 +31,12 @@ export function MobileTabBar() {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'grid justify-items-center gap-0.5',
+              'relative grid justify-items-center gap-0.5',
               active ? 'font-semibold text-ink' : 'text-muted',
             )}
           >
             <TabIcon width={22} height={22} />
+            {key === 'cart' && <CartBadge className="absolute -top-1 left-[calc(50%+4px)]" />}
             {t(key)}
           </Link>
         );

@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { BagIcon, HeartIcon, SearchIcon } from '../icons';
 import { LanguageLink } from '../language-link';
+import { CartBadge } from './cart-count';
 
 const CATEGORY_LINKS = [
   { key: 'women', href: '/catalog/women' },
@@ -50,6 +51,7 @@ export async function SiteHeader() {
           </Link>
           <Link href="/cart" className="flex items-center gap-1.5 hover:text-sale">
             <BagIcon width={20} height={20} /> {t('cart')}
+            <CartBadge />
           </Link>
           <LanguageLink className="text-muted hover:text-ink">{t('languageShort')}</LanguageLink>
         </nav>

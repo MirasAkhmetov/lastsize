@@ -1,25 +1,10 @@
-import { buttonClasses, EmptyState } from '@lastsize/ui';
 import type { Metadata } from 'next';
-import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { Link } from '@/i18n/navigation';
+import { setRequestLocale } from 'next-intl/server';
+import { CartView } from '@/components/store/cart-view';
 
 export const metadata: Metadata = { robots: { index: false } };
 
-export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
+export default async function CartPage({ params }: { params: Promise<{ locale: string }> }) {
   setRequestLocale((await params).locale);
-  const t = await getTranslations('empty');
-  return (
-    <div className="py-10">
-      <EmptyState
-        icon="0"
-        title={t('cartTitle')}
-        description={t('cartText')}
-        action={
-          <Link href="/catalog" className={buttonClasses('primary', 'sm')}>
-            {t('toSale')}
-          </Link>
-        }
-      />
-    </div>
-  );
+  return <CartView />;
 }
