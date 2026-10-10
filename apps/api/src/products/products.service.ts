@@ -50,6 +50,7 @@ import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
 import { toMedia } from '../media/media.service';
 import { ValidationFailedException } from '../security/zod-validation.pipe';
+import { SyncScheduler } from '../sync/sync-queue';
 
 type Gender = 'WOMEN' | 'MEN' | 'UNISEX' | 'KIDS';
 
@@ -95,6 +96,7 @@ export class ProductsService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly syncScheduler: SyncScheduler,
   ) {}
 
   // ───────────────────────── seller ─────────────────────────
@@ -326,6 +328,8 @@ export class ProductsService {
       },
       actor.request,
     );
+    // New stock goes to marketplaces that take our counts (WB write-back).
+    if (input.variants) await this.syncScheduler.storeStockChanged(storeId);
   }
 
   async sellerAction(

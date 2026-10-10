@@ -26,6 +26,14 @@ export const integrationSchema = z.object({
   lastSuccessAt: z.iso.datetime({ offset: true }).nullable(),
   lastError: z.string().nullable(),
   connectedAt: z.iso.datetime({ offset: true }),
+  /** Stock sync settings. */
+  syncEnabled: z.boolean(),
+  pushStock: z.boolean(),
+  warehouseId: z.number().int().nullable(),
+  lastSyncAt: z.iso.datetime({ offset: true }).nullable(),
+  syncing: z.boolean(),
+  /** Our variants linked to this marketplace (imported from it). */
+  linkedCount: z.number().int(),
 });
 export const integrationListSchema = z.array(integrationSchema);
 export type Integration = z.infer<typeof integrationSchema>;
@@ -213,3 +221,41 @@ export const importPublishResultSchema = z.object({
   remaining: z.number().int(),
 });
 export type ImportPublishResult = z.infer<typeof importPublishResultSchema>;
+
+export const updateIntegrationRequestSchema = z
+  .strictObject({
+    syncEnabled: z.boolean(),
+    /** WB only: write our stock back to WB; needs a chosen warehouse. */
+    pushStock: z.boolean(),
+    /** WB only: the FBS warehouse to sync; null = sum of all, read-only. */
+    warehouseId: z.number().int().positive().nullable(),
+  })
+  .partial();
+export type UpdateIntegrationRequest = z.input<typeof updateIntegrationRequestSchema>;
+
+export const warehouseListSchema = z.array(z.object({ id: z.number().int(), name: z.string() }));
+export type Warehouse = z.infer<typeof warehouseListSchema>[number];
+
+export const syncRunSchema = z.object({
+  id: z.uuid(),
+  trigger: z.enum(['SCHEDULE', 'MANUAL', 'STOCK_CHANGE']),
+  status: z.enum(['RUNNING', 'SUCCESS', 'PARTIAL', 'FAILED']),
+  pulled: z.number().int(),
+  pushed: z.number().int(),
+  conflicts: z.number().int(),
+  /** Error code, e.g. "wb.pushForbidden". */
+  error: z.string().nullable(),
+  changes: z.array(
+    z.object({
+      kind: z.enum(['pull', 'push', 'conflict', 'price']),
+      title: z.string(),
+      size: z.string().nullable(),
+      from: z.number().int().nullable(),
+      to: z.number().int().nullable(),
+    }),
+  ),
+  startedAt: z.iso.datetime({ offset: true }),
+  finishedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export const syncRunListSchema = z.array(syncRunSchema);
+export type SyncRun = z.infer<typeof syncRunSchema>;

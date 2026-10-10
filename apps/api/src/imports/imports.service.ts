@@ -709,7 +709,7 @@ export class ImportsService {
               externalProductId,
               externalSizeId: source.externalSizeId,
               barcode: source.barcode,
-              lastExternalStock: source.quantity,
+              lastExternalStock: source.externalQuantity,
             },
           ]
         : [];

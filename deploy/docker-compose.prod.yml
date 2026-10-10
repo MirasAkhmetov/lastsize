@@ -75,7 +75,7 @@ services:
       context: ..
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
-    environment:
+    environment: &api-env
       <<: *app-env
       API_PORT: 4000
       CORS_ORIGINS: ${PUBLIC_SITE_URL},${ADMIN_PUBLIC_URL:?set ADMIN_PUBLIC_URL}
@@ -87,6 +87,20 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET_PUBLIC: lastsize-public
       S3_BUCKET_PRIVATE: lastsize-private
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Background jobs (marketplace stock sync), same image as the API, no HTTP port.
+  worker:
+    image: lastsize-api:${APP_VERSION:-latest}
+    restart: unless-stopped
+    command: ['node', 'dist/worker.js']
+    environment: *api-env
+    healthcheck:
+      disable: true
     depends_on:
       migrate:
         condition: service_completed_successfully

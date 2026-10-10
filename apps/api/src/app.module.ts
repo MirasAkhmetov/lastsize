@@ -15,10 +15,12 @@ import { APP_LOGGER } from './logging';
 import { SecurityModule } from './security/security.module';
 import { StoresModule } from './stores/stores.module';
 import { StorefrontModule } from './storefront/storefront.module';
+import { SyncModule } from './sync/sync.module';
+import { SyncQueueModule } from './sync/sync-queue';
 
 @Global()
 @Module({})
-class CoreModule {
+export class CoreModule {
   static forRoot(env: ApiEnv, logger: Logger): DynamicModule {
     return {
       module: CoreModule,
@@ -49,6 +51,8 @@ export class AppModule {
         MediaModule,
         ProductsModule,
         ImportsModule,
+        SyncQueueModule,
+        SyncModule,
         StorefrontModule,
         AdminModule,
       ],

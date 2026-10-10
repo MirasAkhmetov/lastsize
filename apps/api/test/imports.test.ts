@@ -1,6 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { Writable } from 'node:stream';
 import {
   auditLogs,
@@ -15,153 +13,14 @@ import { pino } from 'pino';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createClient } from './client';
+import { startFakes, TOKEN } from './fakes';
 import { type Harness, startHarness, storageEnabled } from './harness';
 
-const TOKEN = `wb-${randomBytes(24).toString('base64url')}`;
 const SIZE_EU = (size: number) => 2000 + (size - 19);
 const SIZE_M = 1003;
 const SIZE_L = 1004;
 const HOODIES = 105;
 const tenge = (value: number) => value * 100;
-
-function body(request: IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
-    let data = '';
-    request.on('data', (chunk: Buffer) => (data += chunk.toString()));
-    request.on('end', () => resolve(data));
-  });
-}
-
-/** A local stand-in for the Wildberries APIs, a Kaspi price list and a photo CDN. */
-async function startFakes(photo: Buffer) {
-  const requests: { url: string; authorization: string | undefined }[] = [];
-  let base = '';
-  const server: Server = createServer(async (request, response) => {
-    const url = request.url ?? '';
-    const authorization = request.headers.authorization;
-    requests.push({ url, authorization });
-    const json = (status: number, payload: unknown) => {
-      response.writeHead(status, { 'content-type': 'application/json' });
-      response.end(JSON.stringify(payload));
-    };
-    if (url.startsWith('/photos/')) {
-      if (url === '/photos/1.jpg') {
-        response.writeHead(200, { 'content-type': 'image/jpeg' });
-        return response.end(photo);
-      }
-      if (url === '/photos/not-image.jpg') return response.end('<html>nope</html>');
-      return response.writeHead(404).end();
-    }
-    if (url === '/kaspi.xml') {
-      response.writeHead(200, { 'content-type': 'application/xml' });
-      return response.end(`<?xml version="1.0" encoding="utf-8"?>
-<kaspi_catalog xmlns="kaspiShopping"><offers>
-  <offer sku="K-40"><model>Ботинки Timberland желтые 40</model><brand>Timberland</brand>
-    <availabilities><availability available="yes" storeId="PP1" stockCount="1"/></availabilities><price>89990</price></offer>
-  <offer sku="K-41"><model>Ботинки Timberland желтые 41</model><brand>Timberland</brand>
-    <availabilities><availability available="yes" storeId="PP1" stockCount="2"/></availabilities><price>89990</price></offer>
-</offers></kaspi_catalog>`);
-    }
-    if (authorization !== TOKEN) return json(401, { title: 'unauthorized' });
-
-    if (url === '/content/v2/get/cards/list' && request.method === 'POST') {
-      const settings = JSON.parse(await body(request)).settings;
-      const cards = [
-        {
-          nmID: 1001,
-          imtID: 1,
-          vendorCode: 'AF1-W',
-          brand: 'Nike',
-          title: 'Кроссовки Air Force 1',
-          description: 'Классика',
-          subjectName: 'Кроссовки',
-          photos: [
-            { big: `${base}/photos/1.jpg` },
-            { big: `${base}/photos/missing.jpg` },
-            { big: `${base}/photos/not-image.jpg` },
-          ],
-          characteristics: [
-            { id: 1, name: 'Цвет', value: ['белый'] },
-            { id: 2, name: 'Пол', value: ['Женский'] },
-          ],
-          sizes: [
-            { chrtID: 501, techSize: '38', wbSize: '38', skus: ['2000000000501'] },
-            { chrtID: 502, techSize: '39', wbSize: '39', skus: ['2000000000502'] },
-            { chrtID: 503, techSize: '38.5', wbSize: '38.5', skus: ['2000000000503'] },
-          ],
-        },
-        {
-          nmID: 1002,
-          vendorCode: 'HD-2',
-          brand: 'Adidas',
-          title: 'Худи оверсайз',
-          description: '',
-          subjectName: 'Худи',
-          photos: [],
-          characteristics: [
-            { id: 1, name: 'Цвет', value: ['черный'] },
-            { id: 2, name: 'Пол', value: ['Мужской'] },
-          ],
-          sizes: [
-            { chrtID: 601, techSize: 'M', wbSize: '46', skus: ['601'] },
-            { chrtID: 602, techSize: 'L', wbSize: '48', skus: ['602'] },
-          ],
-        },
-        {
-          nmID: 1003,
-          vendorCode: 'PL-3',
-          brand: 'Home',
-          title: 'Подушка декоративная',
-          subjectName: 'Подушки',
-          photos: [{ big: `${base}/photos/1.jpg` }],
-          characteristics: [],
-          sizes: [{ chrtID: 701, techSize: '0', wbSize: '', skus: ['701'] }],
-        },
-      ];
-      return json(200, {
-        cards: cards.slice(0, settings.cursor.limit),
-        cursor: { updatedAt: '2026-10-01T00:00:00Z', nmID: 1003, total: cards.length },
-      });
-    }
-    if (url.startsWith('/api/v2/list/goods/filter')) {
-      return json(200, {
-        data: {
-          listGoods: [
-            {
-              nmID: 1001,
-              currencyIsoCode4217: 'KZT',
-              sizes: [{ sizeID: 501, price: 50000, discountedPrice: 40000 }],
-            },
-            {
-              nmID: 1002,
-              currencyIsoCode4217: 'KZT',
-              sizes: [{ sizeID: 601, price: 30000, discountedPrice: 30000 }],
-            },
-          ],
-        },
-      });
-    }
-    if (url === '/api/v3/warehouses') return json(200, [{ id: 7, name: 'Склад Алматы' }]);
-    if (url === '/api/v3/stocks/7') {
-      const amounts: Record<number, number> = { 501: 3, 502: 0, 503: 2, 601: 4, 602: 1, 701: 5 };
-      const { chrtIds } = JSON.parse(await body(request)) as { chrtIds: number[] };
-      return json(200, {
-        stocks: chrtIds.map((chrtId) => ({ chrtId, amount: amounts[chrtId] ?? 0 })),
-      });
-    }
-    return json(404, {});
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return {
-    base,
-    requests,
-    close: () => {
-      server.closeAllConnections();
-      server.close();
-    },
-  };
-}
 
 describe.runIf(storageEnabled)('imports', () => {
   let h: Harness;

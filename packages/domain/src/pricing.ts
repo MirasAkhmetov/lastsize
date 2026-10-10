@@ -48,7 +48,11 @@ export function priceProblems(
   return problems;
 }
 
-export type FlagReason = 'price.originalRaised' | 'discount.suspiciousForNewStore';
+export type FlagReason =
+  | 'price.originalRaised'
+  | 'discount.suspiciousForNewStore'
+  /** The marketplace price fell, so the discount measured from it is below the minimum. */
+  | 'discount.externalPriceDropped';
 
 const RAISE_TOLERANCE = 0.1;
 const SUSPICIOUS_DISCOUNT = 80;

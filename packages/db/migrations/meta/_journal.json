@@ -92,6 +92,13 @@
       "when": 1791660318892,
       "tag": "0012_integrations_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791662722223,
+      "tag": "0013_stock_sync",
+      "breakpoints": true
     }
   ]
 }

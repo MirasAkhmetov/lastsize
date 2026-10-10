@@ -8,7 +8,9 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch --exec \"node --env-file-if-exists=../../.env\"",
+    "dev:worker": "sh -c 'until [ -f dist/worker.js ]; do sleep 1; done; exec node --env-file-if-exists=../../.env --watch-path=dist dist/worker.js'",
     "start": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run"
@@ -27,6 +29,7 @@
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-fastify": "^12.1.2",
     "@node-rs/argon2": "^2.2.1",
+    "bullmq": "^6.3.9",
     "csv-parse": "7.0.3",
     "fast-xml-parser": "5.11.2",
     "fastify": "^5.12.5",

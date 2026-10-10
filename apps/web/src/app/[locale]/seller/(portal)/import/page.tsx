@@ -1,6 +1,7 @@
 import { EmptyState, Notice, buttonClasses } from '@lastsize/ui';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { ImportSources } from '@/components/seller/import-sources';
+import { SyncPanel } from '@/components/seller/sync-panel';
 import { Link } from '@/i18n/navigation';
 import { getImportJobs, getIntegrations, getMyStores } from '@/server/api';
 
@@ -47,6 +48,7 @@ export default async function ImportPage({ params }: { params: Promise<{ locale:
         <p className="max-w-2xl text-[14px] text-muted">{t('lead')}</p>
       </header>
       <ImportSources storeId={store.id} integrations={integrations} />
+      {integrations.length > 0 && <SyncPanel storeId={store.id} integrations={integrations} />}
       {jobs.length > 0 && (
         <section className="grid gap-3">
           <h2 className="text-[15px] font-bold">{t('recentTitle')}</h2>

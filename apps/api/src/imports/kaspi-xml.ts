@@ -39,11 +39,16 @@ function offerStock(offer: KaspiOffer): number {
     );
 }
 
-/**
- * Kaspi price list (kaspi_catalog XML). It has no photos or categories and lists one offer per
- * size, so offers are grouped by model name and the seller adds photos in the wizard.
- */
-export function parseKaspiXml(xml: Buffer): ImportCandidate[] {
+interface KaspiItem {
+  sku: string;
+  name: string;
+  brand: string | null;
+  price: number | null;
+  stock: number;
+}
+
+/** All offers of a kaspi_catalog XML; entity declarations are refused (no XML bombs). */
+function readOffers(xml: Buffer): KaspiItem[] {
   const text = xml.toString('utf8');
   if (/<!DOCTYPE|<!ENTITY/i.test(text)) throw new SourceRejectedError('kaspi.invalidXml');
   let document: { kaspi_catalog?: { offers?: { offer?: KaspiOffer[] } } };
@@ -60,23 +65,37 @@ export function parseKaspiXml(xml: Buffer): ImportCandidate[] {
   }
   const offers = document.kaspi_catalog?.offers?.offer;
   if (!offers) throw new SourceRejectedError('kaspi.invalidXml');
-  if (offers.length === 0) throw new SourceRejectedError('source.empty');
-
-  const items = offers
+  return offers
     .map((offer) => ({
-      sku: clip(offer['@_sku'], 100),
+      sku: clip(offer['@_sku'], 100) ?? '',
       name: clip(offer.model, 200) ?? '',
       brand: clip(offer.brand, 60),
       price: offerPrice(offer),
       stock: offerStock(offer),
     }))
     .filter((item) => item.sku && item.name);
+}
+
+/** Available stock and price (tiyn) per offer SKU, for stock sync. */
+export function kaspiStock(xml: Buffer): Map<string, { stock: number; price: number | null }> {
+  return new Map(
+    readOffers(xml).map((item) => [item.sku, { stock: item.stock, price: item.price }]),
+  );
+}
+
+/**
+ * Kaspi price list (kaspi_catalog XML). It has no photos or categories and lists one offer per
+ * size, so offers are grouped by model name and the seller adds photos in the wizard.
+ */
+export function parseKaspiXml(xml: Buffer): ImportCandidate[] {
+  const items = readOffers(xml);
+  if (items.length === 0) throw new SourceRejectedError('source.empty');
 
   const candidates = groupBySize(items).map((group): ImportCandidate => {
     const prices = group.items.map((entry) => entry.item.price).filter((p): p is number => !!p);
     const price = prices.length ? Math.min(...prices) : null;
     return {
-      externalId: group.items[0]!.item.sku!,
+      externalId: group.items[0]!.item.sku,
       data: {
         title: group.name.slice(0, 120),
         brand: group.items[0]!.item.brand,

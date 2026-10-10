@@ -1,6 +1,14 @@
 import { HttpException, HttpStatus, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Integration } from '@lastsize/contracts';
-import { and, type Database, eq, integrationCredentials, integrations, sql } from '@lastsize/db';
+import {
+  and,
+  type Database,
+  eq,
+  externalListings,
+  integrationCredentials,
+  integrations,
+  sql,
+} from '@lastsize/db';
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
@@ -58,7 +66,10 @@ export class IntegrationsService {
         lastSuccessAt: integrations.lastSuccessAt,
         lastError: integrations.lastError,
         createdAt: integrations.createdAt,
+        lastSyncAt: integrations.lastSyncAt,
+        syncStartedAt: integrations.syncStartedAt,
         fingerprint: integrationCredentials.fingerprint,
+        linkedCount: sql<number>`(select count(*)::int from external_listings el where el.integration_id = ${integrations.id})`,
       })
       .from(integrations)
       .leftJoin(integrationCredentials, eq(integrationCredentials.integrationId, integrations.id))
@@ -72,6 +83,12 @@ export class IntegrationsService {
       lastSuccessAt: row.lastSuccessAt?.toISOString() ?? null,
       lastError: row.lastError,
       connectedAt: row.createdAt.toISOString(),
+      syncEnabled: row.settings.syncEnabled ?? true,
+      pushStock: row.settings.pushStock ?? false,
+      warehouseId: row.settings.warehouseId ?? null,
+      lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
+      syncing: row.syncStartedAt !== null,
+      linkedCount: row.linkedCount,
     }));
   }
 
@@ -116,7 +133,7 @@ export class IntegrationsService {
       .values({ storeId, provider: 'KASPI_XML', settings: { url } })
       .onConflictDoUpdate({
         target: [integrations.storeId, integrations.provider],
-        set: { settings: { url } },
+        set: { settings: sql`${integrations.settings} || ${JSON.stringify({ url })}::jsonb` },
       })
       .returning({ id: integrations.id });
     return row!.id;
@@ -139,6 +156,56 @@ export class IntegrationsService {
       },
       actor.request,
     );
+  }
+
+  /**
+   * Changes sync settings. Choosing another WB warehouse resets the remembered marketplace
+   * counts, so the next sync starts from what that warehouse shows instead of applying a jump.
+   */
+  async updateSettings(
+    storeId: string,
+    provider: Provider,
+    patch: { syncEnabled?: boolean; pushStock?: boolean; warehouseId?: number | null },
+    actor: Actor,
+  ): Promise<string> {
+    const id = await this.integrationId(storeId, provider);
+    if (!id) throw new NotFoundException('Интеграция не подключена');
+    if (provider !== 'WILDBERRIES' && (patch.pushStock || patch.warehouseId !== undefined))
+      throw new ValidationFailedException([{ path: 'pushStock', message: 'sync.wbOnly' }]);
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ settings: integrations.settings })
+        .from(integrations)
+        .where(eq(integrations.id, id))
+        .for('update');
+      const next = { ...current!.settings, ...patch };
+      if (next.pushStock && next.warehouseId == null)
+        throw new ValidationFailedException([
+          { path: 'warehouseId', message: 'wb.warehouseRequired' },
+        ]);
+      await tx.update(integrations).set({ settings: next }).where(eq(integrations.id, id));
+      if (
+        patch.warehouseId !== undefined &&
+        patch.warehouseId !== (current!.settings.warehouseId ?? null)
+      ) {
+        await tx
+          .update(externalListings)
+          .set({ lastExternalStock: null })
+          .where(eq(externalListings.integrationId, id));
+      }
+    });
+    await this.audit.record(
+      {
+        action: 'integration.settings_changed',
+        actorType: 'USER',
+        actorId: actor.userId,
+        entityType: 'store',
+        entityId: storeId,
+        metadata: { provider, ...patch },
+      },
+      actor.request,
+    );
+    return id;
   }
 
   /** Server-side only: the decrypted token for one outgoing call. */

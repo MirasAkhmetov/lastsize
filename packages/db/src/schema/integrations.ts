@@ -32,6 +32,17 @@ export const importRowStatus = pgEnum('import_row_status', [
 ]);
 export const importMappingKind = pgEnum('import_mapping_kind', ['CATEGORY', 'COLOR', 'SIZE']);
 
+export interface IntegrationSettings {
+  /** Kaspi price-list URL. */
+  url?: string;
+  /** Stock sync on/off (on by default). */
+  syncEnabled?: boolean;
+  /** WB: the seller's own (FBS) warehouse that is synced; null = all, read-only. */
+  warehouseId?: number | null;
+  /** WB: write our stock back to WB (needs a token with write access). */
+  pushStock?: boolean;
+}
+
 /** A store's connection to a marketplace. Settings never contain secrets. */
 export const integrations = pgTable(
   'integrations',
@@ -42,10 +53,12 @@ export const integrations = pgTable(
       .references(() => stores.id, { onDelete: 'cascade' }),
     provider: integrationProvider('provider').notNull(),
     status: integrationStatus('status').notNull().default('ACTIVE'),
-    /** E.g. the Kaspi XML URL or the chosen WB warehouse id. */
-    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    settings: jsonb('settings').$type<IntegrationSettings>().notNull().default({}),
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
     lastError: text('last_error'),
+    /** Set while a stock sync runs; a sync older than a few minutes is treated as crashed. */
+    syncStartedAt: timestamp('sync_started_at', { withTimezone: true }),
+    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -178,4 +191,39 @@ export const externalListings = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('external_listings_integration_idx').on(t.integrationId, t.externalProductId)],
+);
+
+export const syncRunStatus = pgEnum('sync_run_status', ['RUNNING', 'SUCCESS', 'PARTIAL', 'FAILED']);
+export const syncTrigger = pgEnum('sync_trigger', ['SCHEDULE', 'MANUAL', 'STOCK_CHANGE']);
+
+export interface SyncChange {
+  kind: 'pull' | 'push' | 'conflict' | 'price';
+  variantId: string;
+  title: string;
+  size: string | null;
+  from: number | null;
+  to: number | null;
+}
+
+/** One stock sync of an integration: what changed, shown to the seller as a log. */
+export const syncRuns = pgTable(
+  'sync_runs',
+  {
+    id: id(),
+    integrationId: uuid('integration_id')
+      .notNull()
+      .references(() => integrations.id, { onDelete: 'cascade' }),
+    trigger: syncTrigger('trigger').notNull(),
+    status: syncRunStatus('status').notNull().default('RUNNING'),
+    pulled: integer('pulled').notNull().default(0),
+    pushed: integer('pushed').notNull().default(0),
+    conflicts: integer('conflicts').notNull().default(0),
+    /** Error code, e.g. "wb.invalidToken". */
+    error: text('error'),
+    /** The first changes of the run (capped), for the seller's log. */
+    changes: jsonb('changes').$type<SyncChange[]>().notNull().default([]),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [index('sync_runs_integration_idx').on(t.integrationId, t.startedAt)],
 );

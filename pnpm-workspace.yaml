@@ -8,3 +8,5 @@ allowBuilds:
   esbuild: true
   # Ships prebuilt binaries as optional dependencies; its install script only builds a fallback.
   '@parcel/watcher': false
+  # Optional native speed-up for msgpackr (used by BullMQ); the pure JS version is enough.
+  msgpackr-extract: false

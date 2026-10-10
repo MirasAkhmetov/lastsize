@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InventoryConflictError, OutOfStockError } from '../src/errors.js';
 import {
+  applySyncDelta,
   commitStock,
   releaseStock,
   reserveStock,
@@ -189,6 +190,49 @@ describe.runIf(testDatabaseUrl)('inventory', () => {
         ),
       ),
     ).toMatch(/inventory_/);
+  });
+
+  it('applies marketplace sales without taking units reserved by our buyers', async () => {
+    const { variant, location } = await createVariantWithStock(t.db, { stock: 5 });
+    const key = { variantId: variant.id, locationId: location.id };
+    const sync = { refType: 'sync_run', refId: randomUUID() };
+    await reserveStock(t.db, [{ ...key, quantity: 2 }], order());
+
+    expect(await applySyncDelta(t.db, { ...key, delta: -1 }, sync)).toEqual({
+      before: 5,
+      after: 4,
+      clamped: false,
+      available: 2,
+    });
+    // WB sold 4 more, but 2 units are promised to our buyers: stock stops at 2 and says so.
+    expect(await applySyncDelta(t.db, { ...key, delta: -4 }, sync)).toEqual({
+      before: 4,
+      after: 2,
+      clamped: true,
+      available: 0,
+    });
+    expect(await applySyncDelta(t.db, { ...key, delta: 3 }, sync)).toMatchObject({
+      after: 5,
+      available: 3,
+    });
+    const ledger = await t.db
+      .select({ type: inventoryTransactions.type, delta: inventoryTransactions.quantityDelta })
+      .from(inventoryTransactions)
+      .where(
+        and(
+          eq(inventoryTransactions.variantId, variant.id),
+          eq(inventoryTransactions.type, 'SYNC'),
+        ),
+      )
+      .orderBy(inventoryTransactions.id);
+    expect(ledger.map((row) => row.delta)).toEqual([-1, -2, 3]);
+    expect(
+      await applySyncDelta(
+        t.db,
+        { variantId: randomUUID(), locationId: location.id, delta: 1 },
+        sync,
+      ),
+    ).toBeNull();
   });
 
   it('keeps the stock ledger append-only', async () => {

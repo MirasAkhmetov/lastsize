@@ -87,12 +87,20 @@ export function variantsOf(
 ): {
   sizeValueId: number | null;
   quantity: number;
+  /** The marketplace size the variant is linked to (the first one if several were merged). */
   externalSizeId: string | null;
   barcode: string | null;
+  /** Stock of that marketplace size alone: the baseline for syncing it. */
+  externalQuantity: number;
 }[] {
   const merged = new Map<
     number | null,
-    { quantity: number; externalSizeId: string | null; barcode: string | null }
+    {
+      quantity: number;
+      externalSizeId: string | null;
+      barcode: string | null;
+      externalQuantity: number;
+    }
   >();
   for (const size of state.data.sizes) {
     const id = chart === null ? null : (state.sizeMap[sizeKey(size.label)] ?? undefined);
@@ -101,6 +109,7 @@ export function variantsOf(
       quantity: 0,
       externalSizeId: size.externalSizeId,
       barcode: size.barcode,
+      externalQuantity: size.quantity,
     };
     entry.quantity = Math.min(entry.quantity + size.quantity, 9_999);
     merged.set(id, entry);

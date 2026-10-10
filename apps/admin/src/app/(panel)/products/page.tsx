@@ -36,6 +36,7 @@ const FILTERS = [
 const FLAG_LABEL: Record<string, string> = {
   'price.originalRaised': 'Цена до скидки поднята > 10%',
   'discount.suspiciousForNewStore': 'Скидка 80%+ у нового магазина',
+  'discount.externalPriceDropped': 'Цена на маркетплейсе упала: скидка ниже минимальной',
 };
 
 const PAGE_SIZE = 25;

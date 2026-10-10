@@ -250,3 +250,56 @@ export async function setStockLevel(
     }
   });
 }
+
+export interface SyncDeltaResult {
+  before: number;
+  after: number;
+  /** The marketplace sold more than is free here: stock stopped at the reserved amount. */
+  clamped: boolean;
+  /** quantity − reserved after the change. */
+  available: number;
+}
+
+/**
+ * Applies a stock change seen on a marketplace (sold there: negative delta). Units reserved by
+ * our buyers are never taken away; if the marketplace sold them too, the result is clamped and
+ * reported so the seller can sort it out.
+ */
+export async function applySyncDelta(
+  executor: Executor,
+  target: { variantId: string; locationId: string; delta: number },
+  ref: MovementRef,
+): Promise<SyncDeltaResult | null> {
+  if (!Number.isInteger(target.delta)) throw new RangeError('Delta must be an integer');
+  return executor.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ quantity: inventory.quantity, reserved: inventory.reserved })
+      .from(inventory)
+      .where(byKey(target))
+      .for('update');
+    if (!before) return null;
+    const wanted = before.quantity + target.delta;
+    const quantity = Math.max(wanted, before.reserved, 0);
+    const [after] = await tx
+      .update(inventory)
+      .set({ quantity, stockConfirmedAt: sql`now()` })
+      .where(byKey(target))
+      .returning({ quantity: inventory.quantity, reserved: inventory.reserved });
+    if (after!.quantity !== before.quantity) {
+      await recordMovement(
+        tx,
+        target,
+        'SYNC',
+        { quantity: after!.quantity - before.quantity, reserved: 0 },
+        after!,
+        ref,
+      );
+    }
+    return {
+      before: before.quantity,
+      after: after!.quantity,
+      clamped: quantity !== wanted,
+      available: after!.quantity - after!.reserved,
+    };
+  });
+}
