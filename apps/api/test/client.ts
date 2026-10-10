@@ -5,7 +5,7 @@ import { cookieHeader, type Harness, uniquePhone } from './harness';
 
 export const PASSWORD = 'correct-horse-battery';
 
-type Method = 'GET' | 'POST' | 'PATCH';
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 export interface RequestOptions {
   cookie?: string;
   body?: unknown;

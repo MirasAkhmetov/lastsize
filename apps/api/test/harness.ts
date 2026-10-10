@@ -36,7 +36,9 @@ export interface Harness {
 }
 
 /** A full API on an isolated database and a private Redis key namespace. */
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(
+  options: { env?: Record<string, string>; logger?: typeof silentLogger } = {},
+): Promise<Harness> {
   const database = await createTestDatabase();
   const redisKeyPrefix = `test:${randomBytes(4).toString('hex')}:`;
   const env = loadApiEnv({
@@ -47,8 +49,9 @@ export async function startHarness(): Promise<Harness> {
     REDIS_KEY_PREFIX: redisKeyPrefix,
     SECRETS_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     ...testStorageEnv,
+    ...options.env,
   });
-  const app = await createApp(env, silentLogger);
+  const app = await createApp(env, options.logger ?? silentLogger);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
   return {

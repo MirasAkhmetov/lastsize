@@ -71,6 +71,8 @@ export interface ProductInput {
   mediaIds: string[];
   originalPrice: number;
   salePrice: number;
+  /** Selling price on Wildberries or Kaspi (imports only); the discount is measured from it too. */
+  externalPrice?: number | null;
   variants: VariantInput[];
 }
 
@@ -188,6 +190,7 @@ export class ProductsService {
           originalPrice: productVariants.originalPrice,
           salePrice: productVariants.salePrice,
           referencePrice: productVariants.referencePrice,
+          externalPrice: productVariants.externalPrice,
         })
         .from(productVariants)
         .where(eq(productVariants.productId, productId));
@@ -231,7 +234,7 @@ export class ProductsService {
           ? await referencePriceAfterChange(tx, currentPrices.id, prices.salePrice)
           : (currentPrices.referencePrice ?? null);
         const issues = priceProblems(
-          { ...prices, referencePrice },
+          { ...prices, referencePrice, externalPrice: currentPrices.externalPrice },
           minDiscount,
           isPublic ? 'publish' : 'draft',
         );
@@ -284,7 +287,7 @@ export class ProductsService {
           shortId: current.shortId,
           article: input.article ?? (await this.currentArticle(tx, productId)),
           colorId: input.colorId ?? (await this.currentColor(tx, productId)),
-          prices,
+          prices: { ...prices, externalPrice: currentPrices.externalPrice },
           wanted: input.variants,
           existing,
           sizes,
@@ -349,6 +352,7 @@ export class ProductsService {
             id: productVariants.id,
             originalPrice: productVariants.originalPrice,
             salePrice: productVariants.salePrice,
+            externalPrice: productVariants.externalPrice,
             available: inventory.available,
           })
           .from(productVariants)
@@ -369,6 +373,7 @@ export class ProductsService {
             originalPrice: variants[0]?.originalPrice ?? 0,
             salePrice: variants[0]?.salePrice ?? 0,
             referencePrice,
+            externalPrice: variants[0]?.externalPrice ?? null,
             variants: variants.map((v) => ({ sizeValueId: null, quantity: v.available ?? 0 })),
           },
           minDiscount,
@@ -562,6 +567,7 @@ export class ProductsService {
     input: Pick<ProductInput, 'mediaIds' | 'originalPrice' | 'salePrice'> & {
       variants: { quantity: number }[];
       referencePrice?: number | null;
+      externalPrice?: number | null;
     },
     minDiscount: number,
   ): void {
@@ -724,7 +730,10 @@ export class ProductsService {
       productId: string;
       storeId: string;
       shortId: string;
-      input: Pick<ProductInput, 'article' | 'colorId' | 'originalPrice' | 'salePrice'>;
+      input: Pick<
+        ProductInput,
+        'article' | 'colorId' | 'originalPrice' | 'salePrice' | 'externalPrice'
+      >;
       variant: VariantInput;
       sizes: Map<number, string>;
       locationId: string;
@@ -745,6 +754,7 @@ export class ProductsService {
         colorId: args.input.colorId,
         originalPrice: args.input.originalPrice,
         salePrice: args.input.salePrice,
+        externalPrice: args.input.externalPrice ?? null,
       })
       .onConflictDoNothing({ target: [productVariants.storeId, productVariants.sku] })
       .returning({ id: productVariants.id });
@@ -764,7 +774,7 @@ export class ProductsService {
       shortId: string;
       article: string | undefined;
       colorId: number;
-      prices: { originalPrice: number; salePrice: number };
+      prices: { originalPrice: number; salePrice: number; externalPrice: number | null };
       wanted: VariantInput[];
       existing: { id: string; sizeValueId: number | null; isActive: boolean }[];
       sizes: Map<number, string>;

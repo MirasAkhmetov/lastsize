@@ -28,6 +28,12 @@ import {
   sellerStoreSchema,
   type StoreDetail,
   storeDetailSchema,
+  type ImportJob,
+  importJobSchema,
+  type ImportJobList,
+  importJobListSchema,
+  type Integration,
+  integrationListSchema,
 } from '@lastsize/contracts';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
@@ -162,4 +168,28 @@ export async function getSitemapData(): Promise<SitemapData> {
       stores: [],
     }
   );
+}
+
+const storePath = (storeId: string) => `/seller/stores/${encodeURIComponent(storeId)}`;
+
+/** Owner only (integration:manage); check the store role before calling. */
+export async function getIntegrations(storeId: string): Promise<Integration[]> {
+  return (
+    (await apiGet(`${storePath(storeId)}/integrations`, integrationListSchema, {
+      withSession: true,
+    })) ?? []
+  );
+}
+
+export async function getImportJobs(storeId: string): Promise<ImportJobList> {
+  return (
+    (await apiGet(`${storePath(storeId)}/imports`, importJobListSchema, { withSession: true })) ??
+    []
+  );
+}
+
+export function getImportJob(storeId: string, jobId: string): Promise<ImportJob | null> {
+  return apiGet(`${storePath(storeId)}/imports/${encodeURIComponent(jobId)}`, importJobSchema, {
+    withSession: true,
+  });
 }

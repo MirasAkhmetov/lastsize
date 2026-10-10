@@ -66,4 +66,17 @@ describe('loadEnv', () => {
       expect(String((error as Error).message)).not.toContain(shortKey);
     }
   });
+
+  it('refuses private-host imports in production', () => {
+    expect(() =>
+      loadEnv(apiEnvSchema, { ...validApiEnv, IMPORT_ALLOW_PRIVATE_HOSTS: 'true' }),
+    ).toThrow(/IMPORT_ALLOW_PRIVATE_HOSTS/);
+    const env = loadEnv(apiEnvSchema, {
+      ...validApiEnv,
+      NODE_ENV: 'test',
+      IMPORT_ALLOW_PRIVATE_HOSTS: 'true',
+    });
+    expect(env.IMPORT_ALLOW_PRIVATE_HOSTS).toBe(true);
+    expect(env.WB_CONTENT_API_URL).toBe('https://content-api.wildberries.ru');
+  });
 });

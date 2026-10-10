@@ -9,6 +9,7 @@ import { CustomerModule } from './customer/customer.module';
 import { HealthModule } from './health/health.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { MediaModule } from './media/media.module';
+import { ImportsModule } from './imports/imports.module';
 import { ProductsModule } from './products/products.module';
 import { APP_LOGGER } from './logging';
 import { SecurityModule } from './security/security.module';
@@ -47,6 +48,7 @@ export class AppModule {
         StoresModule,
         MediaModule,
         ProductsModule,
+        ImportsModule,
         StorefrontModule,
         AdminModule,
       ],

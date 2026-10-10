@@ -78,6 +78,20 @@
       "when": 1791658522513,
       "tag": "0010_category_slug_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791660318546,
+      "tag": "0011_integrations_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791660318892,
+      "tag": "0012_integrations_triggers",
+      "breakpoints": true
     }
   ]
 }

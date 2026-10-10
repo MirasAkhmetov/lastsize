@@ -9,7 +9,7 @@ const ITEMS = [
   { key: 'navOrders', href: '/seller/orders', ready: false },
   { key: 'navProducts', href: '/seller/products', ready: true },
   { key: 'navInventory', href: '/seller/inventory', ready: false },
-  { key: 'navImport', href: '/seller/import', ready: false },
+  { key: 'navImport', href: '/seller/import', ready: true },
   { key: 'navStore', href: '/seller/store', ready: true },
 ] as const;
 
