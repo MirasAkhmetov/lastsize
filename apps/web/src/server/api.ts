@@ -1,5 +1,14 @@
 import 'server-only';
 import {
+  type CatalogQuery,
+  type CatalogResponse,
+  catalogResponseSchema,
+  type ProductDetail,
+  productDetailSchema,
+  type PublicStore,
+  publicStoreSchema,
+  type SitemapData,
+  sitemapSchema,
   type Color,
   colorListSchema,
   minDiscountSchema,
@@ -117,5 +126,40 @@ export function getMyProduct(storeId: string, productId: string): Promise<Seller
     {
       withSession: true,
     },
+  );
+}
+
+/** Turns parsed catalog filters back into the API query string. */
+export function catalogSearchParams(query: Partial<CatalogQuery>): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') continue;
+    params.set(key, Array.isArray(value) ? value.join(',') : String(value));
+  }
+  return params;
+}
+
+export async function getCatalog(query: Partial<CatalogQuery>): Promise<CatalogResponse | null> {
+  return apiGet(`/catalog/products?${catalogSearchParams(query)}`, catalogResponseSchema, {
+    revalidate: 30,
+  });
+}
+
+export function getProduct(shortId: string): Promise<ProductDetail | null> {
+  return apiGet(`/catalog/products/${encodeURIComponent(shortId)}`, productDetailSchema, {
+    revalidate: 30,
+  });
+}
+
+export function getPublicStore(slug: string): Promise<PublicStore | null> {
+  return apiGet(`/stores/${encodeURIComponent(slug)}`, publicStoreSchema, { revalidate: 60 });
+}
+
+export async function getSitemapData(): Promise<SitemapData> {
+  return (
+    (await apiGet('/catalog/sitemap', sitemapSchema, { revalidate: 600 })) ?? {
+      products: [],
+      stores: [],
+    }
   );
 }

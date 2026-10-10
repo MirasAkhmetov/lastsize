@@ -65,7 +65,8 @@ export const categories = pgTable(
     isActive: boolean('is_active').notNull().default(true),
   },
   (t) => [
-    uniqueIndex('categories_parent_slug_key').on(sql`coalesce(${t.parentId}, 0)`, t.slug),
+    // Slugs are URL paths (/catalog/sneakers), unique across the whole tree.
+    uniqueIndex('categories_slug_key').on(t.slug),
     check('categories_slug_format', sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
   ],
 );

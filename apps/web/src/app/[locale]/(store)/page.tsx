@@ -1,7 +1,8 @@
 import { buttonClasses } from '@lastsize/ui';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
-import { getCategories } from '@/server/api';
+import { CatalogCard } from '@/components/store/catalog-card';
+import { getCatalog, getCategories } from '@/server/api';
 
 // Rendered per request so a deploy never serves a page built while the API was unreachable;
 // the category data itself is cached for 5 minutes (see getCategories).
@@ -11,7 +12,26 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations('home');
-  const categories = await getCategories();
+  const [categories, bigDiscounts, lastSizes, newest] = await Promise.all([
+    getCategories(),
+    getCatalog({ sort: 'discount' }).catch(() => null),
+    getCatalog({ sort: 'last_sizes' }).catch(() => null),
+    getCatalog({ sort: 'newest' }).catch(() => null),
+  ]);
+  const sections = await getTranslations('homeSections');
+  const rails = [
+    {
+      key: 'bigDiscounts',
+      href: '/catalog?sort=discount',
+      items: bigDiscounts?.items.slice(0, 8) ?? [],
+    },
+    {
+      key: 'lastSizes',
+      href: '/catalog?sort=last_sizes',
+      items: lastSizes?.items.filter((item) => item.available <= 2).slice(0, 8) ?? [],
+    },
+    { key: 'newest', href: '/catalog', items: newest?.items.slice(0, 8) ?? [] },
+  ] as const;
   const lang = locale === 'kk' ? 'kk' : 'ru';
 
   return (
@@ -42,6 +62,31 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </div>
         </div>
       </section>
+
+      {rails
+        .filter((rail) => rail.items.length > 0)
+        .map((rail) => (
+          <section key={rail.key} className="grid gap-4" aria-labelledby={`rail-${rail.key}`}>
+            <div className="flex items-baseline justify-between">
+              <h2
+                id={`rail-${rail.key}`}
+                className="font-display text-2xl font-bold tracking-tight"
+              >
+                {sections(rail.key)}
+              </h2>
+              <Link href={rail.href} className="text-[13px] text-muted hover:text-ink">
+                {sections('all')} →
+              </Link>
+            </div>
+            <ul className="grid auto-cols-[44%] grid-flow-col gap-3 overflow-x-auto pb-2 sm:auto-cols-[30%] md:grid-flow-row md:grid-cols-4">
+              {rail.items.map((card) => (
+                <li key={card.shortId}>
+                  <CatalogCard card={card} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
 
       {categories.length > 0 && (
         <section className="grid gap-4" aria-labelledby="categories-title">

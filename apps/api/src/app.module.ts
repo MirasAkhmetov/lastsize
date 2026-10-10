@@ -13,6 +13,7 @@ import { ProductsModule } from './products/products.module';
 import { APP_LOGGER } from './logging';
 import { SecurityModule } from './security/security.module';
 import { StoresModule } from './stores/stores.module';
+import { StorefrontModule } from './storefront/storefront.module';
 
 @Global()
 @Module({})
@@ -46,6 +47,7 @@ export class AppModule {
         StoresModule,
         MediaModule,
         ProductsModule,
+        StorefrontModule,
         AdminModule,
       ],
     };
