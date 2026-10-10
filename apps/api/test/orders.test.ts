@@ -13,7 +13,8 @@ const SNEAKERS = 201;
 const BLACK = 1;
 const tenge = (value: number) => value * 100;
 
-describe.runIf(storageEnabled)('cart and checkout', () => {
+// Every checkout solves a real proof-of-work challenge; CI machines need more time for that.
+describe.runIf(storageEnabled)('cart and checkout', { timeout: 30_000 }, () => {
   let h: Harness;
   let c: ReturnType<typeof createClient>;
   let photo: Buffer;
