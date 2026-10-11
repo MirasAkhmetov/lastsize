@@ -6,11 +6,12 @@ import { OrderSecrets } from './order-secrets';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { SellerOrdersController } from './seller-orders.controller';
+import { StoreOrdersService } from './store-orders.service';
 
 @Module({
   imports: [CustomerModule],
   controllers: [OrdersController, SellerOrdersController],
-  providers: [CartService, CheckoutService, OrderSecrets, OrdersService],
+  providers: [CartService, CheckoutService, OrderSecrets, OrdersService, StoreOrdersService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { overallOrderStatus, transitionSellerOrder } from './seller-order.js';
+import {
+  canAcceptReturn,
+  overallOrderStatus,
+  returnDeadline,
+  storeActions,
+  transitionSellerOrder,
+} from './seller-order.js';
 
 const pickup = (status: Parameters<typeof transitionSellerOrder>[1]['status']) => ({
   status,
@@ -75,5 +81,42 @@ describe('overallOrderStatus', () => {
     [['CANCELLED', 'CANCELLED'], 'CANCELLED'],
   ] as const)('%j → %s', (statuses, expected) => {
     expect(overallOrderStatus(statuses)).toBe(expected);
+  });
+});
+
+describe('storeActions', () => {
+  it('asks for payment before a courier is called', () => {
+    expect(
+      storeActions({ status: 'CONFIRMED', fulfillment: 'DELIVERY', paymentStatus: 'UNPAID' }),
+    ).toEqual(['cancel', 'markPaid']);
+    expect(
+      storeActions({
+        status: 'CONFIRMED',
+        fulfillment: 'DELIVERY',
+        paymentStatus: 'PAID_TO_SELLER',
+      }),
+    ).toEqual(['requestCourier', 'cancel']);
+  });
+
+  it('offers the next pickup step', () => {
+    expect(storeActions({ status: 'NEW', fulfillment: 'PICKUP', paymentStatus: 'UNPAID' })).toEqual(
+      ['confirm', 'cancel'],
+    );
+    expect(
+      storeActions({ status: 'READY_FOR_PICKUP', fulfillment: 'PICKUP', paymentStatus: 'UNPAID' }),
+    ).toEqual(['complete', 'cancel']);
+    expect(
+      storeActions({ status: 'COMPLETED', fulfillment: 'PICKUP', paymentStatus: 'PAID_TO_SELLER' }),
+    ).toEqual([]);
+  });
+});
+
+describe('returns window', () => {
+  it('accepts returns for 14 days after completion', () => {
+    const completed = new Date('2026-10-01T10:00:00Z');
+    expect(returnDeadline(completed).toISOString()).toBe('2026-10-15T10:00:00.000Z');
+    expect(canAcceptReturn(completed, new Date('2026-10-15T09:59:00Z'))).toBe(true);
+    expect(canAcceptReturn(completed, new Date('2026-10-15T10:00:00Z'))).toBe(false);
+    expect(canAcceptReturn(null)).toBe(false);
   });
 });

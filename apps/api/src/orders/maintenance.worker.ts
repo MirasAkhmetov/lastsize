@@ -52,7 +52,7 @@ export class MaintenanceWorker implements OnApplicationBootstrap, OnApplicationS
 
   async process(job: Job): Promise<unknown> {
     if (job.name !== 'expire-orders') throw new UnrecoverableError(`unknown job ${job.name}`);
-    const cancelled = await this.orders.expireUnconfirmed();
+    const cancelled = await this.orders.expireOverdue();
     if (cancelled) this.logger.info({ cancelled }, 'unconfirmed orders cancelled');
     return { cancelled };
   }

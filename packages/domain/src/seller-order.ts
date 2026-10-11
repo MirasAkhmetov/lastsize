@@ -110,3 +110,59 @@ export function overallOrderStatus(statuses: readonly SellerOrderStatus[]): Orde
     ? 'AWAITING_CONFIRMATION'
     : 'IN_PROGRESS';
 }
+
+/** A ready pickup order waits this long; then it is cancelled and the goods go back on sale. */
+export const PICKUP_WINDOW_HOURS = 48;
+/** Buyers can bring goods back to the store within this many days of receiving them. */
+export const RETURN_WINDOW_DAYS = 14;
+
+/** Why a store cancels; shown to the buyer as a translated text. */
+export const STORE_CANCEL_REASONS = [
+  'store.outOfStock',
+  'store.customerUnreachable',
+  'store.customerRefused',
+  'store.other',
+] as const;
+export type StoreCancelReason = (typeof STORE_CANCEL_REASONS)[number];
+
+export type PaymentStatus = 'UNPAID' | 'PAID_TO_SELLER';
+export type StoreAction = SellerOrderAction | 'markPaid';
+
+export function returnDeadline(completedAt: Date): Date {
+  return new Date(completedAt.getTime() + RETURN_WINDOW_DAYS * 86_400_000);
+}
+
+export function canAcceptReturn(completedAt: Date | null, now = new Date()): boolean {
+  return completedAt !== null && now < returnDeadline(completedAt);
+}
+
+/**
+ * Delivery: the store bills the buyer (goods + courier, Kaspi Pay), marks the order paid and
+ * only then calls a courier. Pickup orders are paid at the counter.
+ */
+export function storeActions(current: {
+  status: SellerOrderStatus;
+  fulfillment: Fulfillment;
+  paymentStatus: PaymentStatus;
+}): StoreAction[] {
+  const actions: StoreAction[] = [];
+  for (const action of [
+    'confirm',
+    'readyForPickup',
+    'requestCourier',
+    'handToCourier',
+    'complete',
+    'cancel',
+  ] as const) {
+    if (!transitionSellerOrder(action, current, 'STORE')) continue;
+    if (action === 'requestCourier' && current.paymentStatus !== 'PAID_TO_SELLER') continue;
+    actions.push(action);
+  }
+  if (
+    current.fulfillment === 'DELIVERY' &&
+    current.status === 'CONFIRMED' &&
+    current.paymentStatus === 'UNPAID'
+  )
+    actions.push('markPaid');
+  return actions;
+}

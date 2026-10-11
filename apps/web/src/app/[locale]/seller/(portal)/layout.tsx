@@ -6,7 +6,7 @@ import { LanguageLink } from '@/components/language-link';
 import { LogoutButton } from '@/components/seller/auth-forms';
 import { PortalNav } from '@/components/seller/portal-nav';
 import { Link, redirect } from '@/i18n/navigation';
-import { getMe } from '@/server/api';
+import { getMe, getMyStores, getStoreOrders } from '@/server/api';
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -27,6 +27,9 @@ export default async function SellerPortalLayout({
   if (!me) redirect({ href: '/seller/login', locale });
   const t = await getTranslations('seller');
   const nav = await getTranslations('nav');
+  // Orders waiting for confirmation, shown on the menu so none is missed.
+  const [store] = (await getMyStores()).filter((s) => s.status !== 'BLOCKED');
+  const newOrders = store ? (await getStoreOrders(store.id, 'NEW')).total : 0;
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[220px_1fr]">
@@ -43,7 +46,7 @@ export default async function SellerPortalLayout({
           </div>
         </div>
         <div className="px-2 pb-2 md:px-3">
-          <PortalNav />
+          <PortalNav newOrders={newOrders} />
         </div>
         <div className="hidden gap-2 px-5 py-4 text-[13px] text-muted md:grid">
           <span className="truncate">{me!.user.name}</span>

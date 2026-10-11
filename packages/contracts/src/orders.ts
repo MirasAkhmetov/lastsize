@@ -120,6 +120,21 @@ export const orderOverallStatusSchema = z.enum([
   'CANCELLED',
 ]);
 
+export const PAYMENT_STATUSES = ['UNPAID', 'PAID_TO_SELLER'] as const;
+export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
+export const REFUND_METHODS = ['CASH', 'KASPI', 'CARD'] as const;
+export const refundMethodSchema = z.enum(REFUND_METHODS);
+
+export const returnRecordSchema = z.object({
+  title: z.string(),
+  size: z.string().nullable(),
+  quantity: z.number().int(),
+  status: z.enum(['ACCEPTED', 'REJECTED']),
+  reason: z.string().nullable(),
+  refundMethod: refundMethodSchema.nullable(),
+  at: z.iso.datetime({ offset: true }),
+});
+
 export const orderItemSchema = z.object({
   productPath: z.string(),
   title: z.string(),
@@ -144,8 +159,15 @@ export const orderPartSchema = z.object({
   deliveryAddress: z.string().nullable(),
   deliveryComment: z.string().nullable(),
   courierFee: z.number().int().nullable(),
+  courierTrackingUrl: z.string().nullable(),
+  paymentStatus: paymentStatusSchema,
   itemsTotal: z.number().int(),
   cancelReason: z.string().nullable(),
+  /** Until when a ready pickup order waits at the store. */
+  pickupBy: z.iso.datetime({ offset: true }).nullable(),
+  /** Until when the goods can be brought back (completed orders). */
+  returnBy: z.iso.datetime({ offset: true }).nullable(),
+  returns: z.array(returnRecordSchema),
   /** 4 digits to say at the store counter; only for pickup orders still open. */
   pickupCode: z.string().nullable(),
   /** Until when the store has to confirm (NEW only). */
@@ -210,12 +232,46 @@ export const sellerOrderListSchema = z.object({
 });
 export type SellerOrderList = z.infer<typeof sellerOrderListSchema>;
 
+export const STORE_ACTIONS = [
+  'confirm',
+  'readyForPickup',
+  'markPaid',
+  'requestCourier',
+  'handToCourier',
+  'complete',
+  'cancel',
+] as const;
+export const storeActionSchema = z.enum(STORE_ACTIONS);
+export type StoreAction = z.infer<typeof storeActionSchema>;
+
+export const STORE_CANCEL_REASONS = [
+  'store.outOfStock',
+  'store.customerUnreachable',
+  'store.customerRefused',
+  'store.other',
+] as const;
+
 export const sellerOrderDetailSchema = sellerOrderListItemSchema.extend({
   deliveryAddress: z.string().nullable(),
   deliveryComment: z.string().nullable(),
   courierFee: z.number().int().nullable(),
+  courierTrackingUrl: z.string().nullable(),
+  paymentStatus: paymentStatusSchema,
   cancelReason: z.string().nullable(),
-  items: z.array(orderItemSchema.extend({ sku: z.string() })),
+  pickupBy: z.iso.datetime({ offset: true }).nullable(),
+  returnBy: z.iso.datetime({ offset: true }).nullable(),
+  /** What the store can do now (the server checks again on every action). */
+  actions: z.array(storeActionSchema),
+  canProcessReturn: z.boolean(),
+  returns: z.array(returnRecordSchema),
+  items: z.array(
+    orderItemSchema.extend({
+      id: z.uuid(),
+      sku: z.string(),
+      /** Units already taken back. */
+      returnedQuantity: z.number().int(),
+    }),
+  ),
   history: z.array(
     z.object({
       status: sellerOrderStatusSchema,
@@ -232,3 +288,70 @@ export const sellerOrderListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
+
+export const sellerOrderListQuerySchemaWithSearch = sellerOrderListQuerySchema.extend({
+  /** Order number or a part of the buyer's phone, for finding an order at the counter. */
+  q: z
+    .string()
+    .trim()
+    .regex(/^[\d +()-]{3,20}$/)
+    .optional(),
+});
+
+const tiyn = z
+  .number()
+  .int('price.notWholeTenge')
+  .min(0, 'price.salePositive')
+  .max(1_000_000_00, 'price.tooHigh')
+  .refine((value) => value % 100 === 0, { message: 'price.notWholeTenge' });
+
+export const storeActionRequestSchema = z.discriminatedUnion('action', [
+  z.strictObject({ action: z.literal('confirm') }),
+  z.strictObject({ action: z.literal('readyForPickup') }),
+  z.strictObject({ action: z.literal('markPaid') }),
+  z.strictObject({
+    action: z.literal('requestCourier'),
+    /** What the courier costs; the buyer pays it, the store has already billed it. */
+    courierFee: tiyn,
+    trackingUrl: z
+      .url({ protocol: /^https$/, error: 'url.invalid' })
+      .max(500, 'url.invalid')
+      .optional(),
+  }),
+  z.strictObject({ action: z.literal('handToCourier') }),
+  z.strictObject({
+    action: z.literal('complete'),
+    /** Pickup only: the 4 digits the buyer says at the counter. */
+    pickupCode: z
+      .string()
+      .regex(/^\d{4}$/, 'pickupCode.invalid')
+      .optional(),
+  }),
+  z.strictObject({ action: z.literal('cancel'), reason: z.enum(STORE_CANCEL_REASONS) }),
+]);
+export type StoreActionRequest = z.input<typeof storeActionRequestSchema>;
+
+export const returnRequestSchema = z
+  .strictObject({
+    items: z
+      .array(
+        z.strictObject({
+          orderItemId: z.uuid(),
+          quantity: z.number().int().min(1, 'quantity.invalid').max(10, 'quantity.invalid'),
+        }),
+      )
+      .min(1, 'return.noItems')
+      .max(50),
+    decision: z.enum(['accept', 'reject']),
+    refundMethod: refundMethodSchema.optional(),
+    reason: z.string().trim().max(300, 'return.reasonTooLong').optional(),
+  })
+  .refine((body) => body.decision !== 'accept' || body.refundMethod !== undefined, {
+    message: 'return.refundMethodRequired',
+    path: ['refundMethod'],
+  })
+  .refine((body) => body.decision !== 'reject' || (body.reason?.length ?? 0) >= 3, {
+    message: 'return.reasonRequired',
+    path: ['reason'],
+  });
+export type ReturnRequest = z.input<typeof returnRequestSchema>;

@@ -218,8 +218,12 @@ export function getOrder(number: string, token?: string): Promise<OrderDetail | 
 export async function getStoreOrders(
   storeId: string,
   status?: SellerOrderStatus,
+  search?: string,
 ): Promise<SellerOrderList> {
-  const query = status ? `?status=${status}` : '';
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (search) params.set('q', search);
+  const query = params.size ? `?${params}` : '';
   return (
     (await apiGet(`${storePath(storeId)}/orders${query}`, sellerOrderListSchema, {
       withSession: true,

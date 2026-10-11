@@ -119,6 +119,24 @@ export function OrderView({ initial, token }: { initial: OrderDetail; token?: st
               {t('confirmBy', { time: time(part.confirmBy) })}
             </p>
           )}
+          {part.pickupBy && (
+            <Notice tone="info">{t('pickupBy', { time: time(part.pickupBy) })}</Notice>
+          )}
+          {part.fulfillment === 'DELIVERY' && part.status === 'CONFIRMED' && (
+            <p className="text-[13px] text-muted">
+              {part.paymentStatus === 'PAID_TO_SELLER' ? t('paid') : t('unpaid')}
+            </p>
+          )}
+          {part.courierTrackingUrl && (
+            <a
+              href={part.courierTrackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="justify-self-start text-[13.5px] font-semibold underline underline-offset-4"
+            >
+              {t('track')}
+            </a>
+          )}
           {part.cancelReason && (
             <Notice tone="info">
               {t.has(`cancelReasons.${part.cancelReason}`)
@@ -178,6 +196,28 @@ export function OrderView({ initial, token }: { initial: OrderDetail; token?: st
               <dd>{formatPrice(part.itemsTotal)}</dd>
             </div>
           </dl>
+
+          {(part.returnBy || part.returns.length > 0) && (
+            <div className="grid gap-1 text-[13px]">
+              {part.returnBy && (
+                <p className="text-muted">
+                  {t('returnBy', {
+                    date: format.dateTime(new Date(part.returnBy), {
+                      day: 'numeric',
+                      month: 'long',
+                    }),
+                  })}
+                </p>
+              )}
+              {part.returns.map((entry, index) => (
+                <p key={index}>
+                  {entry.status === 'ACCEPTED'
+                    ? t('returnAccepted', { title: entry.title, quantity: entry.quantity })
+                    : t('returnRejected', { title: entry.title, reason: entry.reason ?? '' })}
+                </p>
+              ))}
+            </div>
+          )}
 
           {part.canCancel && (
             <Button

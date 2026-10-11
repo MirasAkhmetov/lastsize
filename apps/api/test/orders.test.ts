@@ -411,7 +411,7 @@ describe.runIf(storageEnabled)('cart and checkout', { timeout: 30_000 }, () => {
       .update(sellerOrders)
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(sellerOrders.storeId, shop.storeId));
-    expect(await h.app.get(OrdersService).expireUnconfirmed()).toBe(2);
+    expect(await h.app.get(OrdersService).expireOverdue()).toBe(2);
     expect(await stockOf(shop.variants[43]!)).toEqual({ quantity: 5, reserved: 0 });
     const list = (await b.call('GET', '/orders')).json();
     expect(list.map((o: { status: string }) => o.status)).toEqual(['CANCELLED', 'CANCELLED']);
@@ -443,5 +443,248 @@ describe.runIf(storageEnabled)('cart and checkout', { timeout: 30_000 }, () => {
     await b.call('POST', '/cart/items', { variantId: shop.variants[44]! });
     const replay = await b.call('POST', '/orders', body, { 'idempotency-key': randomUUID() });
     expect(replay.json().errors).toEqual([{ path: 'altcha', message: 'altcha.invalid' }]);
+  });
+
+  /** One placed order: the store's part, the buyer and the order number. */
+  async function placedOrder(
+    type: 'PICKUP' | 'DELIVERY',
+    stock: Record<number, number> = { 45: 3 },
+    phone = `+7702${String(Date.now()).slice(-7)}`,
+  ) {
+    const shop = await storeWithProduct(stock);
+    const size = Number(Object.keys(stock)[0]);
+    const b = buyer();
+    await b.call('POST', '/cart/items', { variantId: shop.variants[size]! });
+    await b.call('POST', '/cart/items', { variantId: shop.variants[size]! });
+    const placed = await checkout(
+      b,
+      [
+        type === 'PICKUP'
+          ? { storeId: shop.storeId, type }
+          : { storeId: shop.storeId, type, address: 'Сатпаева 30, кв 12' },
+      ],
+      randomUUID(),
+      phone,
+    );
+    expect(placed.statusCode).toBe(201);
+    const number = placed.json().number as number;
+    const detail = (await b.call('GET', `/orders/${number}`)).json();
+    const partId = detail.parts[0].id as string;
+    const base = `/api/v1/seller/stores/${shop.storeId}/orders/${partId}`;
+    const act = (body: unknown, cookie = shop.seller.cookie) =>
+      c.json('POST', `${base}/actions`, { cookie, body });
+    return { shop, b, number, partId, base, act, variantId: shop.variants[size]!, phone };
+  }
+
+  it('hands a pickup order over by its code and takes goods back within 14 days', async () => {
+    const o = await placedOrder('PICKUP');
+    const seller = () => c.json('GET', o.base, { cookie: o.shop.seller.cookie });
+    expect((await seller()).json()).toMatchObject({
+      status: 'NEW',
+      actions: ['confirm', 'cancel'],
+    });
+    // Not a buyer's business, and not another store's.
+    expect(
+      (await o.b.call('POST', o.base.replace('/api/v1', '') + '/actions', { action: 'confirm' }))
+        .statusCode,
+    ).toBe(401);
+    const other = await storeWithProduct({ 30: 1 });
+    expect((await o.act({ action: 'confirm' }, other.seller.cookie)).statusCode).toBe(404);
+    // Skipping steps is refused.
+    expect((await o.act({ action: 'complete', pickupCode: '0000' })).statusCode).toBe(409);
+
+    expect((await o.act({ action: 'confirm' })).json()).toMatchObject({
+      status: 'CONFIRMED',
+      actions: ['readyForPickup', 'cancel'],
+    });
+    // Once confirmed, the buyer can no longer cancel.
+    expect(
+      (await o.b.call('POST', `/orders/${o.number}/parts/${o.partId}/cancel`)).statusCode,
+    ).toBe(409);
+    const ready = await o.act({ action: 'readyForPickup' });
+    expect(ready.json()).toMatchObject({
+      status: 'READY_FOR_PICKUP',
+      actions: ['complete', 'cancel'],
+    });
+    const pickupBy = Date.parse(ready.json().pickupBy);
+    expect(pickupBy - Date.now()).toBeGreaterThan(47 * 3_600_000);
+
+    const buyerView = (await o.b.call('GET', `/orders/${o.number}`)).json().parts[0];
+    expect(buyerView).toMatchObject({
+      status: 'READY_FOR_PICKUP',
+      pickupBy: ready.json().pickupBy,
+    });
+    const wrongCode = buyerView.pickupCode === '0000' ? '0001' : '0000';
+    expect((await o.act({ action: 'complete', pickupCode: wrongCode })).json().errors).toEqual([
+      { path: 'pickupCode', message: 'pickupCode.invalid' },
+    ]);
+    const done = await o.act({ action: 'complete', pickupCode: buyerView.pickupCode });
+    expect(done.json()).toMatchObject({
+      status: 'COMPLETED',
+      paymentStatus: 'PAID_TO_SELLER',
+      actions: [],
+      canProcessReturn: true,
+    });
+    // Sold: off the shelf, nothing reserved.
+    expect(await stockOf(o.variantId)).toEqual({ quantity: 1, reserved: 0 });
+    const completed = (await o.b.call('GET', `/orders/${o.number}`)).json();
+    expect(completed.status).toBe('COMPLETED');
+    expect(completed.parts[0].pickupCode).toBeNull();
+    expect(Date.parse(completed.parts[0].returnBy) - Date.now()).toBeGreaterThan(13 * 86_400_000);
+
+    // The buyer brings one pair back.
+    const itemId = done.json().items[0].id;
+    const noReason = await c.json('POST', `${o.base}/returns`, {
+      cookie: o.shop.seller.cookie,
+      body: { items: [{ orderItemId: itemId, quantity: 1 }], decision: 'reject' },
+    });
+    expect(noReason.json().errors).toEqual([{ path: 'reason', message: 'return.reasonRequired' }]);
+    const refused = await c.json('POST', `${o.base}/returns`, {
+      cookie: o.shop.seller.cookie,
+      body: {
+        items: [{ orderItemId: itemId, quantity: 1 }],
+        decision: 'reject',
+        reason: 'Следы носки на подошве',
+      },
+    });
+    expect(refused.statusCode).toBe(200);
+    const accepted = await c.json('POST', `${o.base}/returns`, {
+      cookie: o.shop.seller.cookie,
+      body: {
+        items: [{ orderItemId: itemId, quantity: 1 }],
+        decision: 'accept',
+        refundMethod: 'KASPI',
+      },
+    });
+    expect(accepted.json().items[0].returnedQuantity).toBe(1);
+    expect(await stockOf(o.variantId)).toEqual({ quantity: 2, reserved: 0 });
+    const tooMany = await c.json('POST', `${o.base}/returns`, {
+      cookie: o.shop.seller.cookie,
+      body: {
+        items: [{ orderItemId: itemId, quantity: 2 }],
+        decision: 'accept',
+        refundMethod: 'CASH',
+      },
+    });
+    expect(tooMany.json()).toMatchObject({
+      errors: [{ path: `items.${itemId}`, message: 'return.tooMany' }],
+    });
+    const returns = (await o.b.call('GET', `/orders/${o.number}`)).json().parts[0].returns;
+    expect(returns.map((r: { status: string }) => r.status)).toEqual(['REJECTED', 'ACCEPTED']);
+    expect(returns[0]).toMatchObject({ reason: 'Следы носки на подошве', refundMethod: null });
+
+    // After 14 days the store can no longer take goods back.
+    await h.database.db
+      .update(sellerOrders)
+      .set({ completedAt: new Date(Date.now() - 15 * 86_400_000) })
+      .where(eq(sellerOrders.id, o.partId));
+    const late = await c.json('POST', `${o.base}/returns`, {
+      cookie: o.shop.seller.cookie,
+      body: {
+        items: [{ orderItemId: itemId, quantity: 1 }],
+        decision: 'accept',
+        refundMethod: 'CASH',
+      },
+    });
+    expect(late.json().errors).toEqual([{ path: 'items', message: 'return.expired' }]);
+  });
+
+  it('stops guessing of pickup codes', async () => {
+    const o = await placedOrder('PICKUP');
+    await o.act({ action: 'confirm' });
+    await o.act({ action: 'readyForPickup' });
+    const code = (await o.b.call('GET', `/orders/${o.number}`)).json().parts[0]
+      .pickupCode as string;
+    const wrong = code === '1111' ? '2222' : '1111';
+    for (let i = 0; i < 5; i++)
+      expect((await o.act({ action: 'complete', pickupCode: wrong })).statusCode).toBe(422);
+    expect((await o.act({ action: 'complete', pickupCode: code })).statusCode).toBe(429);
+  });
+
+  it('bills a delivery before the courier is called and tracks it to the door', async () => {
+    const o = await placedOrder('DELIVERY');
+    await o.act({ action: 'confirm' });
+    const unpaid = await o.act({ action: 'requestCourier', courierFee: tenge(1500) });
+    expect(unpaid.json().errors).toEqual([{ path: 'action', message: 'order.notPaid' }]);
+    expect((await o.act({ action: 'markPaid' })).json()).toMatchObject({
+      paymentStatus: 'PAID_TO_SELLER',
+      actions: ['requestCourier', 'cancel'],
+    });
+    const badUrl = await o.act({
+      action: 'requestCourier',
+      courierFee: tenge(1500),
+      trackingUrl: 'http://evil.example',
+    });
+    expect(badUrl.statusCode).toBe(422);
+    const called = await o.act({
+      action: 'requestCourier',
+      courierFee: tenge(1500),
+      trackingUrl: 'https://go.yandex/track/abc',
+    });
+    expect(called.json()).toMatchObject({ status: 'COURIER_REQUESTED', courierFee: tenge(1500) });
+    expect(await stockOf(o.variantId)).toEqual({ quantity: 3, reserved: 2 });
+    await o.act({ action: 'handToCourier' });
+    // The goods left the store.
+    expect(await stockOf(o.variantId)).toEqual({ quantity: 1, reserved: 0 });
+    expect((await o.act({ action: 'complete' })).json().status).toBe('COMPLETED');
+    const part = (await o.b.call('GET', `/orders/${o.number}`)).json().parts[0];
+    expect(part).toMatchObject({
+      status: 'COMPLETED',
+      courierFee: tenge(1500),
+      courierTrackingUrl: 'https://go.yandex/track/abc',
+      deliveryAddress: 'Сатпаева 30, кв 12',
+    });
+    expect(part.history.map((entry: { status: string }) => entry.status)).toEqual([
+      'NEW',
+      'CONFIRMED',
+      'COURIER_REQUESTED',
+      'HANDED_TO_COURIER',
+      'COMPLETED',
+    ]);
+  });
+
+  it('lets the store cancel with a reason, and the system cancel uncollected orders', async () => {
+    const o = await placedOrder('PICKUP');
+    await o.act({ action: 'confirm' });
+    expect((await o.act({ action: 'cancel', reason: 'because' })).statusCode).toBe(422);
+    const cancelled = await o.act({ action: 'cancel', reason: 'store.outOfStock' });
+    expect(cancelled.json()).toMatchObject({
+      status: 'CANCELLED',
+      cancelReason: 'store.outOfStock',
+      actions: [],
+    });
+    expect(await stockOf(o.variantId)).toEqual({ quantity: 3, reserved: 0 });
+    expect((await o.b.call('GET', `/orders/${o.number}`)).json().parts[0].cancelReason).toBe(
+      'store.outOfStock',
+    );
+
+    const late = await placedOrder('PICKUP');
+    await late.act({ action: 'confirm' });
+    await late.act({ action: 'readyForPickup' });
+    await h.database.db
+      .update(sellerOrders)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(sellerOrders.id, late.partId));
+    expect(await h.app.get(OrdersService).expireOverdue()).toBeGreaterThanOrEqual(1);
+    const part = (await late.b.call('GET', `/orders/${late.number}`)).json().parts[0];
+    expect(part).toMatchObject({
+      status: 'CANCELLED',
+      cancelReason: 'system.notPickedUp',
+      pickupCode: null,
+    });
+    expect(await stockOf(late.variantId)).toEqual({ quantity: 3, reserved: 0 });
+
+    // Finding the order at the counter by number or by the buyer's phone.
+    const list = (q: string) =>
+      c.json(
+        'GET',
+        `/api/v1/seller/stores/${late.shop.storeId}/orders?q=${encodeURIComponent(q)}`,
+        {
+          cookie: late.shop.seller.cookie,
+        },
+      );
+    expect((await list(String(late.number))).json().total).toBe(1);
+    expect((await list(late.phone.slice(-4))).json().total).toBe(1);
+    expect((await list('0000000')).json().total).toBe(0);
   });
 });

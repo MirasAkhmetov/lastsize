@@ -9,7 +9,7 @@ export default async function SellerOrdersPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   setRequestLocale((await params).locale);
   const t = await getTranslations('sellerOrders');
@@ -19,11 +19,15 @@ export default async function SellerOrdersPage({
   if (!store) {
     return <EmptyState title={t('empty')} description={t('emptyText')} />;
   }
-  const raw = (await searchParams).status;
+  const { status: raw, q: rawQuery } = await searchParams;
+  const query =
+    typeof rawQuery === 'string' && /^[\d +()-]{3,20}$/.test(rawQuery.trim())
+      ? rawQuery.trim()
+      : undefined;
   const status = SELLER_ORDER_STATUSES.includes(raw as SellerOrderStatus)
     ? (raw as SellerOrderStatus)
     : undefined;
-  const list = await getStoreOrders(store.id, status);
+  const list = await getStoreOrders(store.id, status, query);
   const time = (iso: string) =>
     format.dateTime(new Date(iso), {
       day: 'numeric',
@@ -34,7 +38,26 @@ export default async function SellerOrdersPage({
 
   return (
     <div className="grid max-w-5xl gap-5">
-      <h1 className="text-2xl font-bold">{t('title')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
+        <form action="" className="flex gap-2">
+          <input
+            name="q"
+            type="search"
+            inputMode="tel"
+            defaultValue={query ?? ''}
+            placeholder={t('search')}
+            aria-label={t('search')}
+            className="w-56 rounded-ctl border border-line bg-surface px-3 py-2 text-[14px]"
+          />
+          <button
+            type="submit"
+            className="rounded-ctl border border-line px-3 text-[13px] font-semibold hover:bg-soft"
+          >
+            {t('find')}
+          </button>
+        </form>
+      </div>
       <nav className="flex gap-2 overflow-x-auto pb-1 text-[13px]">
         <Link
           href="/seller/orders"

@@ -14,7 +14,7 @@ const ITEMS = [
 ] as const;
 
 /** Sidebar on desktop, horizontal scroller on phones. Sections not built yet are shown but disabled. */
-export function PortalNav() {
+export function PortalNav({ newOrders = 0 }: { newOrders?: number }) {
   const t = useTranslations('seller');
   const pathname = usePathname();
   return (
@@ -36,6 +36,11 @@ export function PortalNav() {
             className={cn(classes, 'hover:text-ink')}
           >
             {t(item.key)}
+            {item.key === 'navOrders' && newOrders > 0 && (
+              <span className="min-w-5 rounded-full bg-sale px-1.5 text-center text-[11px] font-bold text-on-sale tabular-nums">
+                {newOrders}
+              </span>
+            )}
           </Link>
         ) : (
           <span

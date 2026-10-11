@@ -19,11 +19,19 @@ import {
   lt,
   orderItems,
   orders,
+  returnItems,
   sellerOrders,
   sellerOrderStatusHistory,
   sql,
 } from '@lastsize/db';
-import { FINAL_STATUSES, overallOrderStatus, transitionSellerOrder } from '@lastsize/domain';
+import {
+  canAcceptReturn,
+  FINAL_STATUSES,
+  overallOrderStatus,
+  returnDeadline,
+  storeActions,
+  transitionSellerOrder,
+} from '@lastsize/domain';
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
@@ -152,6 +160,7 @@ export class OrdersService {
         .where(inArray(sellerOrderStatusHistory.sellerOrderId, ids))
         .orderBy(asc(sellerOrderStatusHistory.createdAt)),
     ]);
+    const returns = await this.returnsFor(items);
     return {
       number: order.number,
       createdAt: order.createdAt.toISOString(),
@@ -174,8 +183,15 @@ export class OrdersService {
           deliveryAddress: part.deliveryAddress,
           deliveryComment: part.deliveryComment,
           courierFee: part.courierFee,
+          courierTrackingUrl: part.courierTrackingUrl,
+          paymentStatus: part.paymentStatus,
           itemsTotal: part.itemsTotal,
           cancelReason: part.cancelReason,
+          pickupBy: part.status === 'READY_FOR_PICKUP' ? part.expiresAt.toISOString() : null,
+          returnBy: part.completedAt ? returnDeadline(part.completedAt).toISOString() : null,
+          returns: returns
+            .filter((entry) => entry.sellerOrderId === part.id)
+            .map(({ sellerOrderId: _, orderItemId: __, ...entry }) => entry),
           pickupCode:
             part.fulfillment === 'PICKUP' && open ? this.secrets.pickupCode(part.id) : null,
           confirmBy: part.status === 'NEW' ? part.expiresAt.toISOString() : null,
@@ -224,18 +240,26 @@ export class OrdersService {
     );
   }
 
-  /** Stores that did not confirm in time: cancel and give the stock back. Run by the worker. */
-  async expireUnconfirmed(): Promise<number> {
+  /**
+   * Overdue orders: not confirmed within 24 hours, or a ready pickup not collected within
+   * 48 hours. They are cancelled and the stock goes back on sale. Run by the worker.
+   */
+  async expireOverdue(): Promise<number> {
     const due = await this.db
-      .select({ id: sellerOrders.id })
+      .select({ id: sellerOrders.id, status: sellerOrders.status })
       .from(sellerOrders)
-      .where(and(eq(sellerOrders.status, 'NEW'), lt(sellerOrders.expiresAt, sql`now()`)))
+      .where(
+        and(
+          inArray(sellerOrders.status, ['NEW', 'READY_FOR_PICKUP']),
+          lt(sellerOrders.expiresAt, sql`now()`),
+        ),
+      )
       .orderBy(asc(sellerOrders.expiresAt))
       .limit(EXPIRY_BATCH);
     const stores = new Set<string>();
     let cancelled = 0;
-    for (const { id } of due) {
-      // Each one on its own: a store confirming at this very moment wins, the rest go on.
+    for (const { id, status } of due) {
+      // Each one on its own: a store acting at this very moment wins, the rest go on.
       const result = await this.db
         .transaction((tx) =>
           applySellerOrderTransition(
@@ -243,7 +267,7 @@ export class OrdersService {
             id,
             'cancel',
             { type: 'SYSTEM', id: null },
-            'system.notConfirmed',
+            status === 'NEW' ? 'system.notConfirmed' : 'system.notPickedUp',
           ),
         )
         .catch(() => null);
@@ -262,10 +286,17 @@ export class OrdersService {
     status: SellerOrderStatus | undefined,
     limit: number,
     offset: number,
+    query?: string,
   ): Promise<SellerOrderList> {
+    // At the counter: find by order number or by the last digits of the buyer's phone.
+    const digits = query?.replace(/\D/g, '') ?? '';
+    const search = digits
+      ? sql`(${orders.number}::text = ${digits} OR ${orders.contactPhone} LIKE ${`%${digits}%`})`
+      : undefined;
     const where = and(
       eq(sellerOrders.storeId, storeId),
       status ? eq(sellerOrders.status, status) : undefined,
+      search,
     );
     const [rows, [{ total } = { total: 0 }], statusCounts] = await Promise.all([
       this.db
@@ -287,7 +318,11 @@ export class OrdersService {
         .orderBy(desc(sellerOrders.createdAt))
         .limit(limit)
         .offset(offset),
-      this.db.select({ total: count() }).from(sellerOrders).where(where),
+      this.db
+        .select({ total: count() })
+        .from(sellerOrders)
+        .innerJoin(orders, eq(orders.id, sellerOrders.orderId))
+        .where(where),
       this.db
         .select({ status: sellerOrders.status, total: count() })
         .from(sellerOrders)
@@ -330,6 +365,7 @@ export class OrdersService {
         .where(eq(sellerOrderStatusHistory.sellerOrderId, part.id))
         .orderBy(asc(sellerOrderStatusHistory.createdAt)),
     ]);
+    const returns = await this.returnsFor(items);
     return {
       id: part.id,
       number: order.number,
@@ -344,8 +380,22 @@ export class OrdersService {
       deliveryAddress: part.deliveryAddress,
       deliveryComment: part.deliveryComment,
       courierFee: part.courierFee,
+      courierTrackingUrl: part.courierTrackingUrl,
+      paymentStatus: part.paymentStatus,
       cancelReason: part.cancelReason,
-      items: items.map((item) => ({ ...itemView(item), sku: item.sku })),
+      pickupBy: part.status === 'READY_FOR_PICKUP' ? part.expiresAt.toISOString() : null,
+      returnBy: part.completedAt ? returnDeadline(part.completedAt).toISOString() : null,
+      actions: storeActions(part),
+      canProcessReturn: part.status === 'COMPLETED' && canAcceptReturn(part.completedAt),
+      returns: returns.map(({ sellerOrderId: _, orderItemId: __, ...entry }) => entry),
+      items: items.map((item) => ({
+        ...itemView(item),
+        id: item.id,
+        sku: item.sku,
+        returnedQuantity: returns
+          .filter((entry) => entry.orderItemId === item.id && entry.status === 'ACCEPTED')
+          .reduce((sum, entry) => sum + entry.quantity, 0),
+      })),
       history: history.map((entry) => ({
         status: entry.toStatus,
         at: entry.createdAt.toISOString(),
@@ -353,6 +403,34 @@ export class OrdersService {
         reason: entry.reason,
       })),
     };
+  }
+
+  private async returnsFor(items: ItemRow[]) {
+    if (items.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(returnItems)
+      .where(
+        inArray(
+          returnItems.orderItemId,
+          items.map((item) => item.id),
+        ),
+      )
+      .orderBy(asc(returnItems.createdAt));
+    return rows.map((row) => {
+      const item = items.find((candidate) => candidate.id === row.orderItemId)!;
+      return {
+        sellerOrderId: item.sellerOrderId,
+        orderItemId: row.orderItemId,
+        title: item.title,
+        size: item.size,
+        quantity: row.quantity,
+        status: row.status,
+        reason: row.reason,
+        refundMethod: row.refundMethod,
+        at: row.createdAt.toISOString(),
+      };
+    });
   }
 
   private async accessible(

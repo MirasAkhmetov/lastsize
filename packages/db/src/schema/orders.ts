@@ -112,12 +112,19 @@ export const sellerOrders = pgTable(
     deliveryComment: text('delivery_comment'),
     /** Actual courier price entered by the store; paid by the buyer. */
     courierFee: bigint('courier_fee', { mode: 'number' }),
+    /** Tracking link of the courier service (Yandex Go / inDrive), if the store has one. */
+    courierTrackingUrl: text('courier_tracking_url'),
     itemsTotal: bigint('items_total', { mode: 'number' }).notNull(),
     platformFee: bigint('platform_fee', { mode: 'number' }).notNull().default(0),
     /** Code, e.g. "customer.changedMind" or "system.notConfirmed". */
     cancelReason: text('cancel_reason'),
-    /** A NEW order not confirmed by then is cancelled and its stock released. */
+    /**
+     * Deadline of the current step: a NEW order not confirmed, or a READY_FOR_PICKUP order not
+     * collected, by then is cancelled and its stock released.
+     */
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** When the buyer got the goods; returns are accepted for 14 days from here. */
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -126,7 +133,7 @@ export const sellerOrders = pgTable(
     index('seller_orders_store_idx').on(t.storeId, t.status, t.createdAt),
     index('seller_orders_expiry_idx')
       .on(t.expiresAt)
-      .where(sql`${t.status} = 'NEW'`),
+      .where(sql`${t.status} IN ('NEW', 'READY_FOR_PICKUP')`),
     check(
       'seller_orders_delivery_address',
       sql`${t.fulfillment} = 'PICKUP' OR ${t.deliveryAddress} IS NOT NULL`,
@@ -182,4 +189,36 @@ export const sellerOrderStatusHistory = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('seller_order_status_history_order_idx').on(t.sellerOrderId, t.createdAt)],
+);
+
+export const returnStatus = pgEnum('return_status', ['ACCEPTED', 'REJECTED']);
+export const refundMethod = pgEnum('refund_method', ['CASH', 'KASPI', 'CARD']);
+
+/**
+ * The store's decision on goods a buyer brought back within 14 days. Append-only: a decision is
+ * never edited, a new one is recorded instead.
+ */
+export const returnItems = pgTable(
+  'return_items',
+  {
+    id: id(),
+    orderItemId: uuid('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'restrict' }),
+    quantity: integer('quantity').notNull(),
+    status: returnStatus('status').notNull(),
+    /** Why the store refused, shown to the buyer and admins. */
+    reason: text('reason'),
+    refundMethod: refundMethod('refund_method'),
+    processedBy: uuid('processed_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('return_items_order_item_idx').on(t.orderItemId),
+    check('return_items_quantity_positive', sql`${t.quantity} > 0`),
+    check(
+      'return_items_decision',
+      sql`(${t.status} = 'ACCEPTED' AND ${t.refundMethod} IS NOT NULL) OR (${t.status} = 'REJECTED' AND ${t.reason} IS NOT NULL)`,
+    ),
+  ],
 );
