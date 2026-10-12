@@ -1,7 +1,9 @@
-# Production stack for the LastSize server.
+# Production stack for the LastSize server, published through Cloudflare Tunnel.
 #   cd deploy && cp .env.production.example .env && (fill in values)
 #   docker compose -f docker-compose.prod.yml up -d --build
-# Only Caddy publishes ports. Postgres, Redis, storage and the API live on the private network.
+# No port is open to the internet: cloudflared connects out to Cloudflare and forwards to Caddy.
+# Caddy is also on 127.0.0.1:8080 of the host, for checks or a cloudflared already on the host.
+# Postgres, Redis, storage and the API live on the private network only.
 name: lastsize
 
 x-app-env: &app-env
@@ -13,14 +15,11 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - '80:80'
-      - '443:443'
-      # Admin before the domain exists; restrict this port to your IP / VPN in the firewall.
-      - '${ADMIN_PORT:-8081}:8081'
+      - '127.0.0.1:${LOCAL_HTTP_PORT:-8080}:80'
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS}
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN}
       S3_BUCKET_PUBLIC: lastsize-public
-      ADMIN_SITE_ADDRESS: ${ADMIN_SITE_ADDRESS:?set ADMIN_SITE_ADDRESS}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -33,17 +32,32 @@ services:
       api:
         condition: service_healthy
 
+  # Outbound-only connection to Cloudflare; hostnames are set in the Cloudflare dashboard
+  # (Zero Trust → Networks → Tunnels → Public hostnames → http://caddy:80).
+  # Skip it (COMPOSE_PROFILES without "tunnel") if a cloudflared on the host already serves
+  # this server: point its hostnames at http://localhost:8080 instead.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.3
+    profiles: ['tunnel']
+    restart: unless-stopped
+    command: ['tunnel', '--no-autoupdate', 'run']
+    environment:
+      # A secret: whoever has it can serve traffic for your domain.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - caddy
+
   web:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
+        NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN:?set SITE_DOMAIN}
     restart: unless-stopped
     environment:
       <<: *app-env
       API_INTERNAL_URL: http://api:4000
-      NEXT_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+      NEXT_PUBLIC_SITE_URL: https://${SITE_DOMAIN}
 
   admin:
     build:
@@ -78,7 +92,7 @@ services:
     environment: &api-env
       <<: *app-env
       API_PORT: 4000
-      CORS_ORIGINS: ${PUBLIC_SITE_URL},${ADMIN_PUBLIC_URL:?set ADMIN_PUBLIC_URL}
+      CORS_ORIGINS: https://${SITE_DOMAIN},https://${ADMIN_DOMAIN:?set ADMIN_DOMAIN}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:?set SECRETS_ENCRYPTION_KEY}
@@ -87,7 +101,7 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET_PUBLIC: lastsize-public
       S3_BUCKET_PRIVATE: lastsize-private
-      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+      PUBLIC_SITE_URL: https://${SITE_DOMAIN}
       # Optional: Telegram bot for sellers and browser push (empty = switched off).
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}

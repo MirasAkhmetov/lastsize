@@ -7,10 +7,11 @@ coverage
 *.tsbuildinfo
 next-env.d.ts
 
-# Secrets: only .env.example is committed
+# Secrets: only the *.example templates are committed
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 .DS_Store
 *.log

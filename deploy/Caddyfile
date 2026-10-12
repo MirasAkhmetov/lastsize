@@ -1,18 +1,31 @@
-# SITE_ADDRESS:
-#   до покупки домена — ":80" (только для команды, без HTTPS)
-#   после — "lastsize.kz, www.lastsize.kz": Caddy сам получит сертификат Let's Encrypt
-{$SITE_ADDRESS} {
+# Behind Cloudflare Tunnel. Cloudflare terminates HTTPS and cloudflared forwards plain HTTP to
+# Caddy over the private Docker network; no port of the server is open to the internet.
+#   SITE_DOMAIN   e.g. lastsize.kz        (www.lastsize.kz redirects to it)
+#   ADMIN_DOMAIN  e.g. admin.lastsize.kz
+{
+	auto_https off
+	servers {
+		# Only cloudflared reaches Caddy (127.0.0.1 on the host, or the Docker network), so the
+		# visitor's address Cloudflare puts in CF-Connecting-IP is trusted from private
+		# addresses only. Rate limits and audit logs need the real address, not Cloudflare's.
+		trusted_proxies static private_ranges
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+(common) {
 	encode zstd gzip
 
 	header {
 		-Server
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
-	# The API is reachable only through this proxy; its container publishes no ports.
 	# Processed product photos, straight from the public bucket. Only the exact file pattern
 	# produced by the API is served: no directory listings, no other buckets, read-only.
+	# Cloudflare caches them at the edge (immutable for a year).
 	@media {
 		method GET HEAD
 		path_regexp media ^/media/(products/[0-9a-f-]{36}/[0-9a-f-]{36}/(320|640|1080)\.(avif|webp))$
@@ -30,12 +43,13 @@
 
 	handle /api/* {
 		reverse_proxy api:4000 {
+			# The API takes the visitor's address from here (it trusts only private proxies).
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Proto https
 			header_up X-Request-Id {http.request.uuid}
+			# Live notifications (server-sent events) are sent as they happen.
+			flush_interval -1
 		}
-	}
-
-	handle {
-		reverse_proxy web:3000
 	}
 
 	log {
@@ -44,45 +58,35 @@
 	}
 }
 
-# Admin panel on its own address. Until the domain is bought: ADMIN_SITE_ADDRESS=:8081,
-# reachable only through the firewall/VPN. Afterwards: admin.lastsize.kz (own host-only cookies).
-{$ADMIN_SITE_ADDRESS} {
-	encode zstd gzip
-
-	header {
-		-Server
-		X-Robots-Tag "noindex, nofollow"
-	}
-
-	# Processed product photos, straight from the public bucket. Only the exact file pattern
-	# produced by the API is served: no directory listings, no other buckets, read-only.
-	@media {
-		method GET HEAD
-		path_regexp media ^/media/(products/[0-9a-f-]{36}/[0-9a-f-]{36}/(320|640|1080)\.(avif|webp))$
-	}
-	handle @media {
-		rewrite * /buckets/{$S3_BUCKET_PUBLIC}/{re.media.1}
-		reverse_proxy storage:8888 {
-			header_down -Server
-			header_down Cache-Control "public, max-age=31536000, immutable"
-		}
-	}
-	handle /media/* {
-		respond 404
-	}
-
-	handle /api/* {
-		reverse_proxy api:4000 {
-			header_up X-Request-Id {http.request.uuid}
-		}
-	}
+http://{$SITE_DOMAIN} {
+	import common
 
 	handle {
-		reverse_proxy admin:3001
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Proto https
+		}
 	}
+}
 
-	log {
-		output stdout
-		format json
+http://www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
+
+http://{$ADMIN_DOMAIN} {
+	import common
+
+	header X-Robots-Tag "noindex, nofollow"
+
+	handle {
+		reverse_proxy admin:3001 {
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Proto https
+		}
 	}
+}
+
+# Anything else (a scanner guessing the tunnel's address, a wrong hostname) gets nothing.
+http:// {
+	respond 404
 }
