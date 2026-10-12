@@ -26,6 +26,7 @@ import { allowedFrom, nextStoreStatus, type StoreTransition, uniqueSlug } from '
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ValidationFailedException } from '../security/zod-validation.pipe';
 
 export interface StoreLocationInput {
@@ -74,6 +75,7 @@ export class StoresService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async listCities() {
@@ -301,7 +303,7 @@ export class StoresService {
     actor: Actor,
     reason?: string,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    const notice = await this.db.transaction(async (tx) => {
       const [current] = await tx
         .select({ status: stores.status, verifiedAt: stores.verifiedAt })
         .from(stores)
@@ -326,7 +328,16 @@ export class StoresService {
         throw new ConflictException('Статус магазина только что изменился. Обновите страницу.');
 
       if (transition === 'verify') await this.confirmOwnerPhone(tx, storeId);
+      if (transition === 'unblock') return null;
+      return this.notifications.create(
+        tx,
+        { type: 'STORE', id: storeId },
+        `store.${transition === 'verify' ? 'verified' : transition === 'reject' ? 'rejected' : 'blocked'}`,
+        { reason: reason ?? null },
+        '/seller/store',
+      );
     });
+    if (notice) await this.notifications.published([notice]);
     const action = {
       verify: 'store.verified',
       reject: 'store.rejected',

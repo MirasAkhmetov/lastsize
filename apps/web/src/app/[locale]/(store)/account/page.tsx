@@ -2,7 +2,9 @@ import { EmptyState } from '@lastsize/ui';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { LanguageLink } from '@/components/language-link';
+import { UnreadBadge } from '@/components/notifications/bell';
 import { OrderList } from '@/components/store/order-list';
+import { Link } from '@/i18n/navigation';
 import { getMyOrders } from '@/server/api';
 
 export const metadata: Metadata = { robots: { index: false } };
@@ -12,6 +14,7 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations('account');
   const empty = await getTranslations('empty');
+  const nav = await getTranslations('nav');
   const orders = await getMyOrders();
   return (
     <div className="grid gap-6 py-6">
@@ -24,6 +27,13 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
           <OrderList orders={orders} />
         )}
       </section>
+      <Link
+        href="/notifications"
+        className="flex items-center justify-between rounded-xl border border-line bg-surface p-4 font-bold hover:border-ink"
+      >
+        {nav('notifications')}
+        <UnreadBadge base="/customer/notifications" />
+      </Link>
       <section className="flex items-center justify-between rounded-xl border border-line bg-surface p-4">
         <h2 className="font-bold">{t('language')}</h2>
         <LanguageLink className="text-[14px] underline underline-offset-4">

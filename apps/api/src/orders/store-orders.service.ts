@@ -6,6 +6,7 @@ import {
   eq,
   inArray,
   orderItems,
+  orders,
   returnItems,
   returnStock,
   sellerOrders,
@@ -16,6 +17,7 @@ import { canAcceptReturn, PICKUP_WINDOW_HOURS, storeActions } from '@lastsize/do
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RateLimiterService } from '../security/rate-limiter.service';
 import { ValidationFailedException } from '../security/zod-validation.pipe';
 import { SyncScheduler } from '../sync/sync-queue';
@@ -40,6 +42,7 @@ export class StoreOrdersService {
     private readonly rateLimiter: RateLimiterService,
     private readonly syncScheduler: SyncScheduler,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async act(
@@ -63,6 +66,7 @@ export class StoreOrdersService {
     }
 
     const actorRef = { type: 'STORE' as const, id: actor.userId };
+    const created: Awaited<ReturnType<NotificationsService['create']>>[] = [];
     await this.db.transaction(async (tx) => {
       if (body.action === 'markPaid') {
         // Only from the state the page saw: a concurrent change makes this a no-op conflict.
@@ -80,18 +84,27 @@ export class StoreOrdersService {
         if (!updated) throw new ConflictException('Заказ только что изменился. Обновите страницу.');
         return;
       }
-      const reason = body.action === 'cancel' ? body.reason : undefined;
-      await applySellerOrderTransition(tx, sellerOrderId, body.action, actorRef, reason);
-      if (body.action === 'readyForPickup') {
-        await tx
-          .update(sellerOrders)
-          .set({ expiresAt: sql`now() + make_interval(hours => ${PICKUP_WINDOW_HOURS})` })
-          .where(eq(sellerOrders.id, sellerOrderId));
-      }
+      // The courier's price goes in first, so the buyer's notification can tell it.
       if (body.action === 'requestCourier') {
         await tx
           .update(sellerOrders)
           .set({ courierFee: body.courierFee, courierTrackingUrl: body.trackingUrl ?? null })
+          .where(eq(sellerOrders.id, sellerOrderId));
+      }
+      const reason = body.action === 'cancel' ? body.reason : undefined;
+      const result = await applySellerOrderTransition(
+        tx,
+        sellerOrderId,
+        body.action,
+        actorRef,
+        reason,
+        this.notifications,
+      );
+      created.push(...result.notifications);
+      if (body.action === 'readyForPickup') {
+        await tx
+          .update(sellerOrders)
+          .set({ expiresAt: sql`now() + make_interval(hours => ${PICKUP_WINDOW_HOURS})` })
           .where(eq(sellerOrders.id, sellerOrderId));
       }
       if (body.action === 'complete') {
@@ -103,6 +116,7 @@ export class StoreOrdersService {
       }
     });
 
+    await this.notifications.published(created);
     await this.syncScheduler.storeStockChanged(storeId);
     await this.audit.record(
       {
@@ -132,7 +146,7 @@ export class StoreOrdersService {
     body: ReturnRequest,
     actor: Actor,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    const notice = await this.db.transaction(async (tx) => {
       const [part] = await tx
         .select({ status: sellerOrders.status, completedAt: sellerOrders.completedAt })
         .from(sellerOrders)
@@ -190,7 +204,28 @@ export class StoreOrdersService {
           { refType: 'seller_order', refId: sellerOrderId, actorUserId: actor.userId },
         );
       }
+      const [context] = await tx
+        .select({
+          number: orders.number,
+          customerId: orders.customerId,
+          location: sellerOrders.locationSnapshot,
+        })
+        .from(sellerOrders)
+        .innerJoin(orders, eq(orders.id, sellerOrders.orderId))
+        .where(eq(sellerOrders.id, sellerOrderId));
+      return this.notifications.create(
+        tx,
+        { type: 'CUSTOMER', id: context!.customerId },
+        accepted ? 'return.accepted' : 'return.rejected',
+        {
+          number: context!.number,
+          storeName: context!.location.storeName,
+          reason: body.reason ?? null,
+        },
+        `/orders/${context!.number}`,
+      );
     });
+    await this.notifications.published([notice]);
 
     if (body.decision === 'accept') await this.syncScheduler.storeStockChanged(storeId);
     await this.audit.record(

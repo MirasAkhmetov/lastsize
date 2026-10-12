@@ -3,6 +3,7 @@
 import { cn } from '@lastsize/ui';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
+import { UnreadBadge } from '../notifications/bell';
 
 const ITEMS = [
   { key: 'navOverview', href: '/seller/dashboard', ready: true },
@@ -10,11 +11,12 @@ const ITEMS = [
   { key: 'navProducts', href: '/seller/products', ready: true },
   { key: 'navInventory', href: '/seller/inventory', ready: false },
   { key: 'navImport', href: '/seller/import', ready: true },
+  { key: 'navNotifications', href: '/seller/notifications', ready: true },
   { key: 'navStore', href: '/seller/store', ready: true },
 ] as const;
 
 /** Sidebar on desktop, horizontal scroller on phones. Sections not built yet are shown but disabled. */
-export function PortalNav({ newOrders = 0 }: { newOrders?: number }) {
+export function PortalNav({ newOrders = 0, storeId }: { newOrders?: number; storeId?: string }) {
   const t = useTranslations('seller');
   const pathname = usePathname();
   return (
@@ -36,6 +38,9 @@ export function PortalNav({ newOrders = 0 }: { newOrders?: number }) {
             className={cn(classes, 'hover:text-ink')}
           >
             {t(item.key)}
+            {item.key === 'navNotifications' && storeId && (
+              <UnreadBadge base={`/seller/stores/${storeId}/notifications`} live />
+            )}
             {item.key === 'navOrders' && newOrders > 0 && (
               <span className="min-w-5 rounded-full bg-sale px-1.5 text-center text-[11px] font-bold text-on-sale tabular-nums">
                 {newOrders}

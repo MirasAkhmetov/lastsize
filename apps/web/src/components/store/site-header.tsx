@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { BagIcon, HeartIcon, SearchIcon } from '../icons';
 import { LanguageLink } from '../language-link';
+import { UnreadBadge } from '../notifications/bell';
 import { CartBadge } from './cart-count';
 
 const CATEGORY_LINKS = [
@@ -48,6 +49,10 @@ export async function SiteHeader() {
           </Link>
           <Link href="/favorites" className="flex items-center gap-1.5 hover:text-sale">
             <HeartIcon width={20} height={20} /> {t('favorites')}
+          </Link>
+          <Link href="/notifications" className="flex items-center gap-1.5 hover:text-sale">
+            {t('notifications')}
+            <UnreadBadge base="/customer/notifications" />
           </Link>
           <Link href="/cart" className="flex items-center gap-1.5 hover:text-sale">
             <BagIcon width={20} height={20} /> {t('cart')}

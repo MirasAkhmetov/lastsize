@@ -9,6 +9,10 @@ const httpUrl = z.url({ protocol: /^https?$/, error: 'must be an http(s) URL' })
 
 const port = z.coerce.number().int().min(1).max(65535);
 
+/** Docker Compose passes unset variables as empty strings: treat those as not set. */
+const optional = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+
 const originList = z
   .string()
   .transform((value) =>
@@ -61,6 +65,35 @@ export const apiEnvSchema = z
      * Only for tests with local fake servers; refused in production.
      */
     IMPORT_ALLOW_PRIVATE_HOSTS: flag,
+    /** Public address of the site, for links in Telegram messages (password reset, orders). */
+    PUBLIC_SITE_URL: httpUrl.default('http://localhost:3000'),
+    /**
+     * Telegram bot for sellers (order alerts, password reset without SMS). Optional: without a
+     * token these features are switched off. The token is a secret: never logged or returned.
+     */
+    TELEGRAM_BOT_TOKEN: optional(
+      z
+        .string()
+        .regex(/^\d{5,15}:[A-Za-z0-9_-]{30,64}$/, 'must look like 123456:ABC… from @BotFather'),
+    ),
+    TELEGRAM_BOT_USERNAME: optional(z.string().regex(/^[A-Za-z0-9_]{5,32}$/)),
+    /** Overridden only to point tests at a local fake. */
+    TELEGRAM_API_URL: httpUrl.default('https://api.telegram.org'),
+    /** Web Push (VAPID) keys: `npx web-push generate-vapid-keys`. Optional, both or none. */
+    VAPID_PUBLIC_KEY: optional(z.string().regex(/^[A-Za-z0-9_-]{80,100}$/)),
+    VAPID_PRIVATE_KEY: optional(z.string().regex(/^[A-Za-z0-9_-]{40,50}$/)),
+    VAPID_SUBJECT: z
+      .string()
+      .regex(/^(mailto:|https:\/\/)/)
+      .default('mailto:support@lastsize.kz'),
+  })
+  .refine((env) => Boolean(env.VAPID_PUBLIC_KEY) === Boolean(env.VAPID_PRIVATE_KEY), {
+    path: ['VAPID_PRIVATE_KEY'],
+    message: 'set both VAPID keys or none',
+  })
+  .refine((env) => Boolean(env.TELEGRAM_BOT_TOKEN) === Boolean(env.TELEGRAM_BOT_USERNAME), {
+    path: ['TELEGRAM_BOT_USERNAME'],
+    message: 'set both the Telegram bot token and its username, or none',
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.IMPORT_ALLOW_PRIVATE_HOSTS), {
     path: ['IMPORT_ALLOW_PRIVATE_HOSTS'],

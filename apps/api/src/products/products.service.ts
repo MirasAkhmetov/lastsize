@@ -48,6 +48,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { toMedia } from '../media/media.service';
 import { ValidationFailedException } from '../security/zod-validation.pipe';
 import { SyncScheduler } from '../sync/sync-queue';
@@ -97,6 +98,7 @@ export class ProductsService {
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly syncScheduler: SyncScheduler,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ───────────────────────── seller ─────────────────────────
@@ -530,9 +532,21 @@ export class ProductsService {
         ...(action === 'clearFlag' ? { flagReason: null } : {}),
       })
       .where(and(eq(products.id, productId), inArray(products.status, [...allowed])))
-      .returning({ id: products.id });
+      .returning({ id: products.id, storeId: products.storeId, title: products.title });
     if (!updated)
       throw new ConflictException('Статус товара только что изменился. Обновите страницу.');
+    if (action === 'remove') {
+      const notice = await this.db.transaction((tx) =>
+        this.notifications.create(
+          tx,
+          { type: 'STORE', id: updated.storeId },
+          'product.removed',
+          { title: updated.title, reason: reason ?? null },
+          `/seller/products/${productId}`,
+        ),
+      );
+      await this.notifications.published([notice]);
+    }
     await this.audit.record(
       {
         action: {

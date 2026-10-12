@@ -5,6 +5,7 @@ import {
   meResponseSchema,
   type MfaSetupResponse,
   mfaSetupResponseSchema,
+  passwordResetRequestSchema,
   registerRequestSchema,
   totpCodeRequestSchema,
 } from '@lastsize/contracts';
@@ -39,6 +40,18 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<MeResponse> {
     return meResponseSchema.parse(await this.auth.login(body, request, reply));
+  }
+
+  /** Sets a new password from the one-time link the Telegram bot sends. */
+  @Public()
+  @Post('password-reset')
+  @HttpCode(204)
+  async resetPassword(
+    @Body(new ZodValidationPipe(passwordResetRequestSchema))
+    body: z.output<typeof passwordResetRequestSchema>,
+    @Req() request: FastifyRequest,
+  ): Promise<void> {
+    await this.auth.resetPassword(body.token, body.password, request);
   }
 
   @Post('logout')

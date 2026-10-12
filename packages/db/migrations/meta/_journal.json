@@ -127,6 +127,13 @@
       "when": 1791707438607,
       "tag": "0017_return_items_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791793002938,
+      "tag": "0018_notifications",
+      "breakpoints": true
     }
   ]
 }

@@ -87,6 +87,12 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_BUCKET_PUBLIC: lastsize-public
       S3_BUCKET_PRIVATE: lastsize-private
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL}
+      # Optional: Telegram bot for sellers and browser push (empty = switched off).
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

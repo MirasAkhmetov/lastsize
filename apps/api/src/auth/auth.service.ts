@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { MeResponse, MfaSetupResponse } from '@lastsize/contracts';
-import { type Database, eq, users } from '@lastsize/db';
+import { type Database, eq, sql, users } from '@lastsize/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { AuditService } from '../audit/audit.service';
@@ -14,6 +14,8 @@ import { DATABASE, REDIS } from '../infrastructure/infrastructure.module';
 import { RateLimiterService, type RateLimitRule } from '../security/rate-limiter.service';
 import { SECRET_BOX } from '../security/security.module';
 import type { SecretBox } from '../security/secret-box';
+import { OneTimeTokens } from '../notifications/one-time-tokens';
+import { ValidationFailedException } from '../security/zod-validation.pipe';
 import { AccessService } from './access.service';
 import type { AuthContext } from './auth.types';
 import { PasswordService } from './password.service';
@@ -25,6 +27,7 @@ export const AUTH_RATE_LIMITS = {
   loginFailuresPerPhone: { name: 'login:phone', limit: 5, windowSeconds: 15 * 60 },
   registerPerIp: { name: 'register:ip', limit: 5, windowSeconds: 60 * 60 },
   mfaFailuresPerUser: { name: 'mfa:user', limit: 5, windowSeconds: 15 * 60 },
+  resetPerIp: { name: 'reset:ip', limit: 10, windowSeconds: 60 * 60 },
 } satisfies Record<string, RateLimitRule>;
 
 const INVALID_CREDENTIALS = 'Неверный номер телефона или пароль';
@@ -44,6 +47,7 @@ export class AuthService {
     private readonly totp: TotpService,
     private readonly rateLimiter: RateLimiterService,
     private readonly audit: AuditService,
+    private readonly oneTimeTokens: OneTimeTokens,
   ) {}
 
   async register(
@@ -117,6 +121,32 @@ export class AuthService {
       request,
     );
     return this.me((await this.access.load(session))!.context);
+  }
+
+  /**
+   * New password from the Telegram bot's one-time link. Telegram vouched for the phone number,
+   * so it counts as confirmed. Every session of the account is signed out.
+   */
+  async resetPassword(token: string, password: string, request: FastifyRequest): Promise<void> {
+    await this.rateLimiter.consume(AUTH_RATE_LIMITS.resetPerIp, request.ip);
+    const userId = await this.oneTimeTokens.consume('password-reset', token);
+    if (!userId) throw new ValidationFailedException([{ path: 'token', message: 'reset.invalid' }]);
+    const passwordHash = await this.passwords.hash(password);
+    await this.db
+      .update(users)
+      .set({ passwordHash, phoneVerifiedAt: sql`coalesce(${users.phoneVerifiedAt}, now())` })
+      .where(eq(users.id, userId));
+    await this.sessions.revokeAllForUser(userId);
+    await this.audit.record(
+      {
+        action: 'auth.password_reset',
+        actorType: 'USER',
+        actorId: userId,
+        entityType: 'user',
+        entityId: userId,
+      },
+      request,
+    );
   }
 
   async logout(auth: AuthContext, request: FastifyRequest, reply: FastifyReply): Promise<void> {

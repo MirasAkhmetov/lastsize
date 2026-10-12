@@ -7,3 +7,4 @@ export * from './security.js';
 export * from './media.js';
 export * from './integrations.js';
 export * from './orders.js';
+export * from './notifications.js';

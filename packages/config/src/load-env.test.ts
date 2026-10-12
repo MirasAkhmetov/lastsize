@@ -79,4 +79,19 @@ describe('loadEnv', () => {
     expect(env.IMPORT_ALLOW_PRIVATE_HOSTS).toBe(true);
     expect(env.WB_CONTENT_API_URL).toBe('https://content-api.wildberries.ru');
   });
+
+  it('treats empty optional secrets as not set and requires key pairs', () => {
+    const env = loadEnv(apiEnvSchema, {
+      ...validApiEnv,
+      TELEGRAM_BOT_TOKEN: '',
+      VAPID_PUBLIC_KEY: '',
+    });
+    expect(env.TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(() =>
+      loadEnv(apiEnvSchema, {
+        ...validApiEnv,
+        TELEGRAM_BOT_TOKEN: `123456:${'A'.repeat(35)}`,
+      }),
+    ).toThrow(/TELEGRAM_BOT_USERNAME/);
+  });
 });

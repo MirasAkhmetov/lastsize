@@ -3,6 +3,7 @@ import {
   commitStock,
   eq,
   orderItems,
+  orders,
   releaseStock,
   sellerOrders,
   sellerOrderStatusHistory,
@@ -16,6 +17,7 @@ import {
   type SellerOrderStatus,
   transitionSellerOrder,
 } from '@lastsize/domain';
+import type { NotificationsService, Recipient } from '../notifications/notifications.service';
 
 const ACTOR_TYPE: Record<OrderActor, 'USER' | 'CUSTOMER' | 'SYSTEM'> = {
   CUSTOMER: 'CUSTOMER',
@@ -28,7 +30,17 @@ export interface TransitionResult {
   storeId: string;
   from: SellerOrderStatus;
   to: SellerOrderStatus;
+  /** Created in the same transaction; pass to `NotificationsService.published` after commit. */
+  notifications: { id: string; recipient: Recipient }[];
 }
+
+const CUSTOMER_NOTICE: Partial<Record<SellerOrderStatus, string>> = {
+  CONFIRMED: 'order.confirmed',
+  READY_FOR_PICKUP: 'order.readyForPickup',
+  COURIER_REQUESTED: 'order.courierRequested',
+  HANDED_TO_COURIER: 'order.handedToCourier',
+  COMPLETED: 'order.completed',
+};
 
 /**
  * The one way a seller order changes status: row lock, the domain's transition table, the
@@ -39,7 +51,8 @@ export async function applySellerOrderTransition(
   sellerOrderId: string,
   action: SellerOrderAction,
   actor: { type: OrderActor; id: string | null },
-  reason?: string,
+  reason: string | undefined,
+  notifications: NotificationsService,
 ): Promise<TransitionResult> {
   const [current] = await tx
     .select({
@@ -90,5 +103,57 @@ export async function applySellerOrderTransition(
     actorId: actor.id,
     reason: reason ?? null,
   });
-  return { storeId: current.storeId, from: current.status, to: transition.to };
+
+  // Tell the other side: the buyer about the store's steps, the store about cancellations
+  // it did not make itself.
+  const [context] = await tx
+    .select({
+      number: orders.number,
+      customerId: orders.customerId,
+      location: sellerOrders.locationSnapshot,
+      courierFee: sellerOrders.courierFee,
+    })
+    .from(sellerOrders)
+    .innerJoin(orders, eq(orders.id, sellerOrders.orderId))
+    .where(eq(sellerOrders.id, sellerOrderId));
+  const created: TransitionResult['notifications'] = [];
+  const params = {
+    number: context!.number,
+    storeName: context!.location.storeName,
+    address: context!.location.address,
+    courierFee: context!.courierFee,
+    reason: reason ?? null,
+  };
+  const customerType =
+    transition.to === 'CANCELLED'
+      ? actor.type === 'CUSTOMER'
+        ? null
+        : 'order.cancelledForCustomer'
+      : CUSTOMER_NOTICE[transition.to];
+  if (customerType)
+    created.push(
+      await notifications.create(
+        tx,
+        { type: 'CUSTOMER', id: context!.customerId },
+        customerType,
+        params,
+        `/orders/${context!.number}`,
+      ),
+    );
+  if (transition.to === 'CANCELLED' && actor.type !== 'STORE')
+    created.push(
+      await notifications.create(
+        tx,
+        { type: 'STORE', id: current.storeId },
+        'order.cancelledForStore',
+        params,
+        `/seller/orders/${sellerOrderId}`,
+      ),
+    );
+  return {
+    storeId: current.storeId,
+    from: current.status,
+    to: transition.to,
+    notifications: created,
+  };
 }

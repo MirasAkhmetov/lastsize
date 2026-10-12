@@ -35,6 +35,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { DATABASE } from '../infrastructure/infrastructure.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { IMAGE_WIDTHS } from '../media/image-processor';
 import { mediaUrl } from '../media/media.service';
 import { SyncScheduler } from '../sync/sync-queue';
@@ -79,6 +80,7 @@ export class OrdersService {
     private readonly secrets: OrderSecrets,
     private readonly syncScheduler: SyncScheduler,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ───────────────────────── buyer ─────────────────────────
@@ -225,8 +227,10 @@ export class OrdersService {
         'cancel',
         { type: 'CUSTOMER', id: order.customerId },
         'customer.cancelled',
+        this.notifications,
       );
     });
+    await this.notifications.published(result.notifications);
     await this.syncScheduler.storeStockChanged(result.storeId);
     await this.audit.record(
       {
@@ -268,15 +272,43 @@ export class OrdersService {
             'cancel',
             { type: 'SYSTEM', id: null },
             status === 'NEW' ? 'system.notConfirmed' : 'system.notPickedUp',
+            this.notifications,
           ),
         )
         .catch(() => null);
       if (!result) continue;
+      await this.notifications.published(result.notifications);
       cancelled += 1;
       stores.add(result.storeId);
     }
     for (const storeId of stores) await this.syncScheduler.storeStockChanged(storeId);
     return cancelled;
+  }
+
+  /** Two hours without an answer: remind the store once (Telegram, push, notification centre). */
+  async remindUnconfirmed(): Promise<number> {
+    const due = await this.db.execute<{ id: string; store_id: string; number: string }>(sql`
+      SELECT so.id, so.store_id, o.number
+      FROM seller_orders so JOIN orders o ON o.id = so.order_id
+      WHERE so.status = 'NEW' AND so.created_at < now() - interval '2 hours'
+        AND NOT EXISTS (
+          SELECT 1 FROM notifications n
+          WHERE n.recipient_type = 'STORE' AND n.recipient_id = so.store_id
+            AND n.type = 'order.reminder' AND n.params->>'sellerOrderId' = so.id::text)
+      LIMIT ${EXPIRY_BATCH}`);
+    for (const row of due.rows) {
+      const created = await this.db.transaction((tx) =>
+        this.notifications.create(
+          tx,
+          { type: 'STORE', id: row.store_id },
+          'order.reminder',
+          { number: Number(row.number), sellerOrderId: row.id },
+          `/seller/orders/${row.id}`,
+        ),
+      );
+      await this.notifications.published([created]);
+    }
+    return due.rows.length;
   }
 
   // ───────────────────────── seller ─────────────────────────

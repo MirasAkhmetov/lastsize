@@ -9,6 +9,7 @@ import { CustomerModule } from './customer/customer.module';
 import { HealthModule } from './health/health.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { MediaModule } from './media/media.module';
+import { NotificationsCoreModule, NotificationsModule } from './notifications/notifications.module';
 import { OrdersModule } from './orders/orders.module';
 import { ImportsModule } from './imports/imports.module';
 import { ProductsModule } from './products/products.module';
@@ -44,6 +45,7 @@ export class AppModule {
         InfrastructureModule,
         SecurityModule,
         AuditModule,
+        NotificationsCoreModule,
         AuthModule,
         HealthModule,
         CatalogModule,
@@ -55,6 +57,7 @@ export class AppModule {
         SyncQueueModule,
         SyncModule,
         OrdersModule,
+        NotificationsModule,
         StorefrontModule,
         AdminModule,
       ],

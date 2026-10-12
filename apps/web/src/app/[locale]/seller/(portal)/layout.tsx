@@ -46,7 +46,7 @@ export default async function SellerPortalLayout({
           </div>
         </div>
         <div className="px-2 pb-2 md:px-3">
-          <PortalNav newOrders={newOrders} />
+          <PortalNav newOrders={newOrders} storeId={store?.id} />
         </div>
         <div className="hidden gap-2 px-5 py-4 text-[13px] text-muted md:grid">
           <span className="truncate">{me!.user.name}</span>

@@ -1,133 +1,31 @@
-import { randomBytes, randomUUID } from 'node:crypto';
-import { eq, inventory, orderItems, orders, sellerOrders, stores } from '@lastsize/db';
-import { solveChallenge } from 'altcha-lib';
-import { deriveKey } from 'altcha-lib/algorithms/pbkdf2';
-import sharp from 'sharp';
+import { randomUUID } from 'node:crypto';
+import { eq, orderItems, orders, sellerOrders } from '@lastsize/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OrdersService } from '../src/orders/orders.service';
 import { createClient } from './client';
-import { cookieHeader, type Harness, startHarness, storageEnabled } from './harness';
-
-const SIZE_EU = (size: number) => 2000 + (size - 19);
-const SNEAKERS = 201;
-const BLACK = 1;
-const tenge = (value: number) => value * 100;
+import { type Harness, startHarness, storageEnabled } from './harness';
+import { shopHelpers, tenge } from './shop';
 
 // Every checkout solves a real proof-of-work challenge; CI machines need more time for that.
 describe.runIf(storageEnabled)('cart and checkout', { timeout: 30_000 }, () => {
   let h: Harness;
   let c: ReturnType<typeof createClient>;
-  let photo: Buffer;
+  let shop: Awaited<ReturnType<typeof shopHelpers>>;
+  const storeWithProduct = (...args: Parameters<typeof shop.storeWithProduct>) =>
+    shop.storeWithProduct(...args);
+  const buyer = () => shop.buyer();
+  const altcha = () => shop.altcha();
+  const checkout = (...args: Parameters<typeof shop.checkout>) => shop.checkout(...args);
+  const stockOf = (variantId: string) => shop.stockOf(variantId);
 
   beforeAll(async () => {
     h = await startHarness();
     c = createClient(h);
-    photo = await sharp({
-      create: { width: 900, height: 1200, channels: 3, background: { r: 60, g: 60, b: 60 } },
-    })
-      .jpeg()
-      .toBuffer();
+    shop = await shopHelpers(h, c);
   });
   afterAll(async () => {
     await h?.close();
   });
-
-  /** A verified store with one published pair of sneakers: sizes → stock. */
-  async function storeWithProduct(stock: Record<number, number>, salePrice = 30000) {
-    const seller = await c.register();
-    const store = await c.createStoreFor(seller.userId);
-    await h.database.db
-      .update(stores)
-      .set({ status: 'VERIFIED', verifiedAt: new Date(Date.now() - 365 * 86_400_000) })
-      .where(eq(stores.id, store.id));
-    const boundary = `----ls${randomBytes(6).toString('hex')}`;
-    const media = await h.app.inject({
-      method: 'POST',
-      url: `/api/v1/seller/stores/${store.id}/media`,
-      headers: {
-        cookie: seller.cookie,
-        'content-type': `multipart/form-data; boundary=${boundary}`,
-      },
-      payload: Buffer.concat([
-        Buffer.from(
-          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="a.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
-        ),
-        photo,
-        Buffer.from(`\r\n--${boundary}--\r\n`),
-      ]),
-    });
-    const product = await c.json('POST', `/api/v1/seller/stores/${store.id}/products`, {
-      cookie: seller.cookie,
-      body: {
-        title: 'Кроссовки Air Max',
-        brand: 'Nike',
-        categoryId: SNEAKERS,
-        gender: 'WOMEN',
-        colorId: BLACK,
-        mediaIds: [media.json().id],
-        originalPrice: tenge(60000),
-        salePrice: tenge(salePrice),
-        variants: Object.entries(stock).map(([size, quantity]) => ({
-          sizeValueId: SIZE_EU(Number(size)),
-          quantity,
-        })),
-        publish: true,
-      },
-    });
-    expect(product.statusCode).toBe(201);
-    const variants = Object.fromEntries(
-      (product.json().variants as { id: string; sizeLabel: string }[]).map((v) => [
-        Number(v.sizeLabel),
-        v.id,
-      ]),
-    );
-    return { seller, storeId: store.id, productId: product.json().id as string, variants };
-  }
-
-  /** A browser of a guest buyer: keeps its device cookie between requests. */
-  function buyer() {
-    let cookie = '';
-    const call = async (
-      method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
-      url: string,
-      body?: unknown,
-      headers?: Record<string, string>,
-    ) => {
-      const response = await c.json(method, `/api/v1${url}`, { cookie, body, headers });
-      const set = cookieHeader(response);
-      if (set) cookie = set;
-      return response;
-    };
-    return { call, cookie: () => cookie };
-  }
-
-  async function altcha(): Promise<string> {
-    const challenge = (await c.json('GET', '/api/v1/orders/challenge')).json();
-    const solution = await solveChallenge({ challenge, deriveKey });
-    return Buffer.from(JSON.stringify({ challenge, solution })).toString('base64');
-  }
-
-  async function checkout(
-    b: ReturnType<typeof buyer>,
-    fulfillment: unknown[],
-    key: string = randomUUID(),
-    phone = '+77011234567',
-  ) {
-    return b.call(
-      'POST',
-      '/orders',
-      { contact: { name: 'Айгерим', phone }, fulfillment, altcha: await altcha() },
-      { 'idempotency-key': key },
-    );
-  }
-
-  async function stockOf(variantId: string) {
-    const [row] = await h.database.db
-      .select({ quantity: inventory.quantity, reserved: inventory.reserved })
-      .from(inventory)
-      .where(eq(inventory.variantId, variantId));
-    return row!;
-  }
 
   it('keeps a cart per device, within real stock', async () => {
     const shop = await storeWithProduct({ 38: 2, 39: 0 });

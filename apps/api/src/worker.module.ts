@@ -4,6 +4,9 @@ import { CoreModule } from './app.module';
 import { AuditModule } from './audit/audit.module';
 import type { ApiEnv } from './config/api-env';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
+import { DeliveryWorker } from './notifications/delivery.worker';
+import { NotificationsCoreModule } from './notifications/notifications.module';
+import { TelegramBotWorker } from './notifications/telegram-bot.worker';
 import { MaintenanceWorker } from './orders/maintenance.worker';
 import { OrdersModule } from './orders/orders.module';
 import { SecurityModule } from './security/security.module';
@@ -22,11 +25,12 @@ export class WorkerModule {
         InfrastructureModule,
         SecurityModule,
         AuditModule,
+        NotificationsCoreModule,
         SyncQueueModule,
         SyncModule,
         OrdersModule,
       ],
-      providers: [SyncWorker, MaintenanceWorker],
+      providers: [SyncWorker, MaintenanceWorker, DeliveryWorker, TelegramBotWorker],
     };
   }
 }

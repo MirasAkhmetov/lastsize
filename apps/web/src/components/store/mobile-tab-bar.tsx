@@ -4,6 +4,7 @@ import { cn } from '@lastsize/ui';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
 import { BagIcon, GridIcon, HeartIcon, HomeIcon, UserIcon } from '../icons';
+import { UnreadBadge } from '../notifications/bell';
 import { CartBadge } from './cart-count';
 
 const TABS = [
@@ -37,6 +38,12 @@ export function MobileTabBar() {
           >
             <TabIcon width={22} height={22} />
             {key === 'cart' && <CartBadge className="absolute -top-1 left-[calc(50%+4px)]" />}
+            {key === 'profile' && (
+              <UnreadBadge
+                base="/customer/notifications"
+                className="absolute -top-1 left-[calc(50%+4px)]"
+              />
+            )}
             {t(key)}
           </Link>
         );

@@ -18,6 +18,7 @@ import type { FastifyRequest } from 'fastify';
 import { AuditService } from '../audit/audit.service';
 import { CodedConflictException } from '../common/coded-conflict.exception';
 import { DATABASE } from '../infrastructure/infrastructure.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RateLimiterService } from '../security/rate-limiter.service';
 import { ValidationFailedException } from '../security/zod-validation.pipe';
 import { SyncScheduler } from '../sync/sync-queue';
@@ -48,6 +49,7 @@ export class CheckoutService {
     private readonly rateLimiter: RateLimiterService,
     private readonly syncScheduler: SyncScheduler,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -112,6 +114,7 @@ export class CheckoutService {
 
     const access = this.secrets.newAccessToken();
     let created: { id: string; number: number; storeIds: string[] };
+    const notices: Awaited<ReturnType<NotificationsService['create']>>[] = [];
     try {
       created = await this.db.transaction(async (tx) => {
         const [order] = await tx
@@ -161,6 +164,15 @@ export class CheckoutService {
               unitPrice,
             })),
           );
+          notices.push(
+            await this.notifications.create(
+              tx,
+              { type: 'STORE', id: store.storeId },
+              'order.new',
+              { number: order!.number, total: store.itemsTotal, fulfillment: part.type },
+              `/seller/orders/${sellerOrder!.id}`,
+            ),
+          );
         }
         await tx.execute(sql`DELETE FROM cart_items WHERE customer_id = ${customerId}`);
         await tx
@@ -189,6 +201,7 @@ export class CheckoutService {
     }
 
     // Reserved here, so marketplaces that take our counts must show less.
+    await this.notifications.published(notices);
     for (const storeId of created.storeIds) await this.syncScheduler.storeStockChanged(storeId);
     await this.audit.record(
       {

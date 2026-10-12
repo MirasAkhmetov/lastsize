@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { SellerAuthForm } from '@/components/seller/auth-forms';
+import { ForgotPassword } from '@/components/seller/password-reset';
 import { Link } from '@/i18n/navigation';
 
 export const metadata: Metadata = { robots: { index: false } };
@@ -13,6 +14,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <h1 className="text-2xl font-bold">{t('loginTitle')}</h1>
 
       <SellerAuthForm mode="login" />
+      <ForgotPassword />
       <p className="text-[14px] text-muted">
         {t('noAccount')}{' '}
         <Link href="/seller/join" className="font-semibold text-ink underline underline-offset-4">
