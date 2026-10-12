@@ -24,6 +24,10 @@ const CANCEL_REASONS: Record<string, Record<Lang, string>> = {
   'store.customerUnreachable': { ru: 'магазин не смог дозвониться', kk: 'дүкен хабарласа алмады' },
   'store.customerRefused': { ru: 'вы отказались от заказа', kk: 'сіз тапсырыстан бас тарттыңыз' },
   'store.other': { ru: 'магазин отменил заказ', kk: 'дүкен тапсырысты болдырмады' },
+  'admin.cancelled': {
+    ru: 'заказ отменила поддержка LastSize',
+    kk: 'тапсырысты LastSize қолдау қызметі болдырмады',
+  },
 };
 
 const reason = (code: unknown, lang: Lang) =>

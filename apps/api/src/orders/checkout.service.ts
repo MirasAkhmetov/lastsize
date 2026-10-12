@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { CheckoutRequest, OrderCreated } from '@lastsize/contracts';
 import {
   and,
+  blockedPhones,
   customers,
   type Database,
   eq,
@@ -68,6 +69,13 @@ export class CheckoutService {
 
     if (!(await this.secrets.verifyAltcha(input.altcha)))
       throw new ValidationFailedException([{ path: 'altcha', message: 'altcha.invalid' }]);
+    // Numbers the platform blocked for fake orders get the same answer every time.
+    const [blocked] = await this.db
+      .select({ phone: blockedPhones.phone })
+      .from(blockedPhones)
+      .where(eq(blockedPhones.phone, input.contact.phone));
+    if (blocked)
+      throw new ValidationFailedException([{ path: 'contact.phone', message: 'phone.blocked' }]);
     await this.rateLimiter.consume(ORDERS_PER_IP, request.ip);
     await this.rateLimiter.consume(ORDERS_PER_CUSTOMER, customerId);
     await this.assertFewPending(customerId, input.contact.phone);

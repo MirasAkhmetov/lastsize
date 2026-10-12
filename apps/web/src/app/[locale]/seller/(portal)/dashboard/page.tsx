@@ -2,7 +2,8 @@ import { buttonClasses, EmptyState, Notice } from '@lastsize/ui';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { StoreStatusCard } from '@/components/seller/store-status';
 import { Link } from '@/i18n/navigation';
-import { getMe, getMyStores } from '@/server/api';
+import { StoreStats } from '@/components/seller/store-stats';
+import { getMe, getMyStores, getStoreAnalytics } from '@/server/api';
 
 export default async function SellerDashboardPage({
   params,
@@ -13,6 +14,8 @@ export default async function SellerDashboardPage({
   const t = await getTranslations('seller');
   const [me, stores] = await Promise.all([getMe(), getMyStores()]);
   if (!me) return null; // the layout has already redirected
+  const active = stores.find((store) => store.status === 'VERIFIED');
+  const stats = active ? await getStoreAnalytics(active.id) : null;
 
   return (
     <div className="grid max-w-4xl gap-6">
@@ -43,6 +46,7 @@ export default async function SellerDashboardPage({
           />
         ))
       )}
+      {stats && <StoreStats stats={stats} />}
     </div>
   );
 }

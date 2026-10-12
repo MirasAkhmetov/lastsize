@@ -222,3 +222,11 @@ export const returnItems = pgTable(
     ),
   ],
 );
+
+/** Numbers that may not place orders (fake orders, never reachable). Kept with the reason. */
+export const blockedPhones = pgTable('blocked_phones', {
+  phone: text('phone').primaryKey(),
+  reason: text('reason').notNull(),
+  blockedBy: uuid('blocked_by').notNull(),
+  createdAt: createdAt(),
+});

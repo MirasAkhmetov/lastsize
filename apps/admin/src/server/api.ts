@@ -11,6 +11,19 @@ import {
   type ProductList,
   productListSchema,
   type StoreStatus,
+  type AdminOrderDetail,
+  adminOrderDetailSchema,
+  type AdminOrderList,
+  adminOrderListSchema,
+  type BlockedPhone,
+  blockedPhoneListSchema,
+  type IntegrationHealth,
+  integrationHealthListSchema,
+  type PlatformAnalytics,
+  platformAnalyticsSchema,
+  type SellerOrderStatus,
+  type SuspiciousPhone,
+  suspiciousPhoneListSchema,
 } from '@lastsize/contracts';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -76,4 +89,37 @@ export function getProductFeed(
     `/admin/products?filter=${filter}&limit=${limit}&offset=${offset}`,
     productListSchema,
   );
+}
+
+export function getAnalytics(days: number): Promise<PlatformAnalytics | null> {
+  return apiGet(`/admin/analytics?days=${days}`, platformAnalyticsSchema);
+}
+
+export function getOrders(
+  status: SellerOrderStatus | undefined,
+  query: string | undefined,
+  limit: number,
+  offset: number,
+): Promise<AdminOrderList | null> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (status) params.set('status', status);
+  if (query) params.set('q', query);
+  return apiGet(`/admin/orders?${params}`, adminOrderListSchema);
+}
+
+export function getOrder(id: string): Promise<AdminOrderDetail | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return Promise.resolve(null);
+  return apiGet(`/admin/orders/${id}`, adminOrderDetailSchema);
+}
+
+export async function getSuspiciousPhones(): Promise<SuspiciousPhone[]> {
+  return (await apiGet('/admin/phones/suspicious', suspiciousPhoneListSchema)) ?? [];
+}
+
+export async function getBlockedPhones(): Promise<BlockedPhone[]> {
+  return (await apiGet('/admin/phones/blocked', blockedPhoneListSchema)) ?? [];
+}
+
+export async function getIntegrationHealth(): Promise<IntegrationHealth[]> {
+  return (await apiGet('/admin/integrations', integrationHealthListSchema)) ?? [];
 }

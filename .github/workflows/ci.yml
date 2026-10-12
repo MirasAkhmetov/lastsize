@@ -68,6 +68,86 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # The whole buyer and seller journey in a real browser, against production builds.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: check
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: lastsize_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci -d lastsize_e2e"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: production
+      DATABASE_URL: postgres://ci:ci@localhost:5432/lastsize_e2e
+      REDIS_URL: redis://localhost:6379
+      CORS_ORIGINS: http://localhost:3000
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ci-access
+      S3_SECRET_KEY: ci-secret-key
+      S3_BUCKET_PUBLIC: lastsize-public
+      S3_BUCKET_PRIVATE: lastsize-private
+      MEDIA_ORIGIN_URL: http://localhost:8888/buckets/lastsize-public
+      API_INTERNAL_URL: http://localhost:4000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      PUBLIC_SITE_URL: http://localhost:3000
+      TURBO_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Start S3 storage (SeaweedFS)
+        run: |
+          docker run -d --name storage -p 9000:9000 -p 8888:8888 \
+            -e AWS_ACCESS_KEY_ID=ci-access -e AWS_SECRET_ACCESS_KEY=ci-secret-key \
+            chrislusf/seaweedfs:latest server -dir=/data -s3 -s3.port=9000 -ip.bind=0.0.0.0
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9000/ && break; sleep 2; done
+      - run: pnpm install --frozen-lockfile
+      - run: echo "SECRETS_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - run: pnpm build
+      - run: pnpm db:migrate
+      - name: Start API, worker and site
+        run: |
+          node apps/api/dist/main.js > api.log 2>&1 &
+          node apps/api/dist/worker.js > worker.log 2>&1 &
+          cp -r apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          cp -r apps/web/public apps/web/.next/standalone/apps/web/public
+          PORT=3000 HOSTNAME=0.0.0.0 node apps/web/.next/standalone/apps/web/server.js > web.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:4000/api/v1/health > /dev/null && curl -sf -o /dev/null http://localhost:3000/ && break
+            sleep 2
+          done
+      - run: pnpm --filter @lastsize/e2e exec playwright install --with-deps chromium
+      - run: pnpm e2e
+        env:
+          CI: '1'
+      - name: Keep the report and server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            *.log
+          retention-days: 7
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20

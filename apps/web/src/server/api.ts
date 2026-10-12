@@ -43,6 +43,8 @@ import {
   type SellerOrderList,
   sellerOrderListSchema,
   type SellerOrderStatus,
+  type StoreAnalytics,
+  storeAnalyticsSchema,
 } from '@lastsize/contracts';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
@@ -234,6 +236,12 @@ export async function getStoreOrders(
 export function getStoreOrder(storeId: string, id: string): Promise<SellerOrderDetail | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return Promise.resolve(null);
   return apiGet(`${storePath(storeId)}/orders/${id}`, sellerOrderDetailSchema, {
+    withSession: true,
+  });
+}
+
+export function getStoreAnalytics(storeId: string, days = 30): Promise<StoreAnalytics | null> {
+  return apiGet(`${storePath(storeId)}/analytics?days=${days}`, storeAnalyticsSchema, {
     withSession: true,
   });
 }

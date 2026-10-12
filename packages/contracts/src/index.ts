@@ -13,3 +13,4 @@ export * from './storefront.js';
 export * from './imports.js';
 export * from './orders.js';
 export * from './notifications.js';
+export * from './operations.js';

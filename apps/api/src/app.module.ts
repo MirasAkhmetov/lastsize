@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { MediaModule } from './media/media.module';
 import { NotificationsCoreModule, NotificationsModule } from './notifications/notifications.module';
+import { OperationsModule } from './operations/operations.module';
 import { OrdersModule } from './orders/orders.module';
 import { ImportsModule } from './imports/imports.module';
 import { ProductsModule } from './products/products.module';
@@ -58,6 +59,7 @@ export class AppModule {
         SyncModule,
         OrdersModule,
         NotificationsModule,
+        OperationsModule,
         StorefrontModule,
         AdminModule,
       ],
